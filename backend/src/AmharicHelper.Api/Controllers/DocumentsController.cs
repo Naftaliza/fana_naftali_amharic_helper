@@ -1,0 +1,82 @@
+using AmharicHelper.Application.DTOs;
+using AmharicHelper.Application.Features.Chat;
+using AmharicHelper.Application.Features.Documents;
+using AmharicHelper.Domain.Enums;
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace AmharicHelper.Api.Controllers;
+
+[Authorize]
+public class DocumentsController(IMediator mediator) : ApiControllerBase(mediator)
+{
+    /// <summary>Upload a document (PDF/JPG/PNG). Runs OCR on upload.</summary>
+    [HttpPost]
+    [RequestSizeLimit(20_000_000)]
+    public async Task<IActionResult> Upload(IFormFile file)
+    {
+        if (file is null || file.Length == 0) return BadRequest(new { error = "No file provided." });
+
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        var result = await Mediator.Send(
+            new UploadDocumentCommand(CurrentUserId, file.FileName, file.ContentType, ms.ToArray()));
+
+        return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> List()
+    {
+        var result = await Mediator.Send(new ListDocumentsQuery(CurrentUserId));
+        return Ok(result.Value);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> Get(Guid id)
+    {
+        var result = await Mediator.Send(new GetDocumentQuery(CurrentUserId, id));
+        return result.Success ? Ok(result.Value) : NotFound(new { error = result.Error });
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var result = await Mediator.Send(new DeleteDocumentCommand(CurrentUserId, id));
+        return result.Success ? NoContent() : NotFound(new { error = result.Error });
+    }
+
+    /// <summary>Run AI analysis on a document. Category selects the prompt template.</summary>
+    [HttpPost("{id:guid}/analyze")]
+    public async Task<IActionResult> Analyze(Guid id, [FromQuery] DocumentCategory category = DocumentCategory.Other)
+    {
+        var result = await Mediator.Send(new AnalyzeDocumentCommand(CurrentUserId, id, category));
+        return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
+    }
+
+    /// <summary>Synthesize spoken audio (MP3) of the document's analysis in the given language.</summary>
+    [HttpGet("{id:guid}/speech")]
+    public async Task<IActionResult> Speech(Guid id, [FromQuery] Language language = Language.Hebrew)
+    {
+        var result = await Mediator.Send(new SpeakDocumentQuery(CurrentUserId, id, language));
+        if (!result.Success || result.Value is null)
+            return BadRequest(new { error = result.Error });
+        return File(result.Value.Content, result.Value.ContentType);
+    }
+
+    [HttpGet("{id:guid}/chat")]
+    public async Task<IActionResult> ChatHistory(Guid id)
+    {
+        var result = await Mediator.Send(new GetChatHistoryQuery(CurrentUserId, id));
+        return result.Success ? Ok(result.Value) : NotFound(new { error = result.Error });
+    }
+
+    [HttpPost("{id:guid}/chat")]
+    public async Task<IActionResult> Chat(Guid id, SendChatRequest request)
+    {
+        var result = await Mediator.Send(
+            new SendChatMessageCommand(CurrentUserId, id, request.Question, request.ResponseLanguage));
+        return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
+    }
+}

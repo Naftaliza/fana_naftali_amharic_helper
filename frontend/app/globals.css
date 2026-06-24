@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* next/font sets --font-noto; fall back to system fonts with Hebrew/Ethiopic coverage. */
+  --font-sans: var(--font-noto), "Segoe UI", "Noto Sans Hebrew", "Noto Sans Ethiopic", system-ui, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply text-gray-900 antialiased;
+  font-family: var(--font-sans);
+  /* Calm, trustworthy page wash. */
+  background: linear-gradient(180deg, #f6f9ff 0%, #f3fffd 100%);
+  background-attachment: fixed;
+  min-height: 100dvh;
+}
+
+/* Larger, readable base typography for accessibility. */
+body {
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+/* Safe-area helpers for notch / home indicator on mobile. */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.bottom-safe { bottom: env(safe-area-inset-bottom); }
+
+/* Respect reduced-motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

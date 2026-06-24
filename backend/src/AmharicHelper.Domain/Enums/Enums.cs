@@ -1,0 +1,37 @@
+namespace AmharicHelper.Domain.Enums;
+
+/// <summary>How urgent acting on a document is.</summary>
+public enum UrgencyLevel
+{
+    Low = 0,
+    Medium = 1,
+    High = 2,
+    Critical = 3
+}
+
+/// <summary>The kind of institution / document. Drives which prompt template is used.</summary>
+public enum DocumentCategory
+{
+    Government = 0,
+    Bank = 1,
+    Insurance = 2,
+    Employment = 3,
+    Healthcare = 4,
+    Municipality = 5,
+    Other = 6
+}
+
+/// <summary>Supported UI / output languages. Hebrew is the default; only Hebrew is RTL.</summary>
+public enum Language
+{
+    Hebrew = 0,
+    Amharic = 1,
+    English = 2
+}
+
+/// <summary>Author of a chat message.</summary>
+public enum ChatRole
+{
+    User = 0,
+    Assistant = 1
+}

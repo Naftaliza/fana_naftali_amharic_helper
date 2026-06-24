@@ -1,0 +1,14 @@
+using AmharicHelper.Domain.Enums;
+
+namespace AmharicHelper.Domain.Entities;
+
+/// <summary>A registered user of Amharic Helper.</summary>
+public class User
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Email { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public Language PreferredLanguage { get; set; } = Language.Hebrew;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
