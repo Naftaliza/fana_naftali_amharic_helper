@@ -2,10 +2,11 @@
 
 export type Language = "he" | "am" | "en";
 
-export const LANGUAGES: { code: Language; label: string; rtl: boolean }[] = [
-  { code: "he", label: "עברית", rtl: true },
-  { code: "am", label: "አማርኛ", rtl: false }, // Amharic (Ethiopic) is written LTR.
-  { code: "en", label: "English", rtl: false },
+// `flag` is an ISO country code used to load a flag image (emoji flags don't render on Windows).
+export const LANGUAGES: { code: Language; label: string; rtl: boolean; flag: string }[] = [
+  { code: "he", label: "עברית", rtl: true, flag: "il" },
+  { code: "am", label: "አማርኛ", rtl: false, flag: "et" }, // Amharic (Ethiopic) is written LTR.
+  { code: "en", label: "English", rtl: false, flag: "gb" },
 ];
 
 // Only Hebrew is rendered right-to-left.

@@ -56,6 +56,17 @@ export function Navbar() {
             {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
 
+          {/* Dim backdrop — tapping the grayed-out area closes the menu. */}
+          {open && (
+            <button
+              type="button"
+              aria-hidden="true"
+              tabIndex={-1}
+              onClick={() => setOpen(false)}
+              className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] animate-fade-in"
+            />
+          )}
+
           {open && (
             <div className="absolute end-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-soft dark:border-gray-800 dark:bg-gray-900">
               {/* Language preference */}
@@ -65,10 +76,22 @@ export function Navbar() {
               {LANGUAGES.map((l) => (
                 <button
                   key={l.code}
-                  onClick={() => setLanguage(l.code)}
+                  onClick={() => { setLanguage(l.code); setOpen(false); }}
                   className={`${itemClass} justify-between ${language === l.code ? "text-brand" : ""}`}
                 >
-                  {l.label}
+                  <span className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`https://flagcdn.com/24x18/${l.flag}.png`}
+                      srcSet={`https://flagcdn.com/48x36/${l.flag}.png 2x`}
+                      width={24}
+                      height={18}
+                      alt=""
+                      aria-hidden="true"
+                      className="rounded-sm shadow-sm"
+                    />
+                    {l.label}
+                  </span>
                   {language === l.code && <Check className="h-4 w-4" />}
                 </button>
               ))}
