@@ -1,0 +1,13 @@
+# Netlify build config for the Next.js frontend.
+# The site's base directory is this `frontend` folder.
+# NEXT_PUBLIC_API_URL is set in the Netlify dashboard (points at the Railway API),
+# not committed here.
+[build]
+  base = "frontend"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

@@ -56,10 +56,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
-// CORS for the Next.js frontend
+// CORS for the Next.js frontend. Frontend:Origin may be a comma-separated list
+// so the production domain plus Netlify preview/deploy URLs all pass CORS.
 const string CorsPolicy = "frontend";
+var frontendOrigins = (builder.Configuration["Frontend:Origin"] ?? "http://localhost:3000")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(o => o.AddPolicy(CorsPolicy, p =>
-    p.WithOrigins(builder.Configuration["Frontend:Origin"] ?? "http://localhost:3000")
+    p.WithOrigins(frontendOrigins)
      .AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
