@@ -46,7 +46,7 @@ export default function DocumentDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (!doc) return <p className="text-gray-500">{t("common.loading")}</p>;
+  if (!doc) return <p className="text-gray-500 dark:text-gray-400">{t("common.loading")}</p>;
 
   return (
     <div className="space-y-6">
@@ -66,7 +66,7 @@ export default function DocumentDetailPage() {
       {!doc.analysis && !analyzing && (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            {error && <p className="text-red-600">{error}</p>}
+            {error && <p role="alert" className="text-red-600">{error}</p>}
             <Button onClick={analyze} size="lg">
               <Sparkles className="h-5 w-5" />{t("doc.analyze")}
             </Button>

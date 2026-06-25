@@ -65,7 +65,7 @@ export function UploadExperience() {
       <div className="mx-auto flex max-w-md flex-col items-center gap-6 pt-16 text-center">
         <Lock className="h-14 w-14 text-brand" />
         <h1 className="text-2xl font-bold">{t("trial.overTitle")}</h1>
-        <p className="text-lg text-gray-600">{t("trial.overBody")}</p>
+        <p className="text-lg text-gray-600 dark:text-gray-400">{t("trial.overBody")}</p>
         <div className="flex w-full flex-col gap-3">
           <Link href="/register"><Button size="lg" className="w-full">{t("nav.register")}</Button></Link>
           <Link href="/login"><Button variant="outline" size="lg" className="w-full">{t("nav.login")}</Button></Link>
@@ -78,7 +78,7 @@ export function UploadExperience() {
     return (
       <div className="space-y-6">
         <AnalysisCard analysis={trialResult} trial />
-        <Card className="border-brand bg-brand-light">
+        <Card className="border-brand bg-brand-light dark:bg-brand/15">
           <CardContent className="flex flex-col items-center gap-3 py-6 text-center">
             {!user && <p className="text-lg font-medium">{t("trial.savePrompt").replace("{n}", String(remaining))}</p>}
             <div className="flex flex-wrap justify-center gap-3">
@@ -100,7 +100,7 @@ export function UploadExperience() {
   return (
     <div className="mx-auto flex max-w-xl animate-fade-in-up flex-col items-center gap-6 pt-6 text-center">
       <h1 className="bg-brand-gradient bg-clip-text text-4xl font-bold leading-tight text-transparent">{t("landing.headline")}</h1>
-      <p className="text-lg text-gray-600">{t("landing.subheadline")}</p>
+      <p className="text-lg text-gray-600 dark:text-gray-400">{t("landing.subheadline")}</p>
 
       <button
         onClick={() => setCameraOpen(true)}
@@ -115,11 +115,11 @@ export function UploadExperience() {
         {t("upload.orChooseFile")}
       </button>
 
-      <p className="text-sm text-gray-500">{t("upload.formats")}</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400">{t("upload.formats")}</p>
       {!user && (
         <p className="text-sm text-brand">{t("trial.remaining").replace("{n}", String(remaining))}</p>
       )}
-      {error && <p className="text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-red-600">{error}</p>}
 
       <input ref={inputRef} type="file" accept={ACCEPT} className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0])} />

@@ -17,7 +17,7 @@ export default function ProfilePage() {
     if (!loading && !user) router.push("/login");
   }, [loading, user, router]);
 
-  if (!user) return <p className="text-gray-500">{t("common.loading")}</p>;
+  if (!user) return <p className="text-gray-500 dark:text-gray-400">{t("common.loading")}</p>;
 
   const langLabel = LANGUAGES[user.preferredLanguage]?.label ?? "—";
 
@@ -26,9 +26,9 @@ export default function ProfilePage() {
       <h1 className="text-3xl font-bold">{t("nav.profile")}</h1>
       <Card>
         <CardHeader><CardTitle>{user.displayName}</CardTitle></CardHeader>
-        <CardContent className="space-y-2 text-gray-700">
-          <p><span className="text-gray-500">{t("auth.email")}:</span> {user.email}</p>
-          <p><span className="text-gray-500">{t("nav.dashboard")}:</span> {langLabel}</p>
+        <CardContent className="space-y-2 text-gray-700 dark:text-gray-300">
+          <p><span className="text-gray-500 dark:text-gray-400">{t("auth.email")}:</span> {user.email}</p>
+          <p><span className="text-gray-500 dark:text-gray-400">{t("nav.dashboard")}:</span> {langLabel}</p>
           <Button variant="outline" className="mt-4" onClick={logout}>{t("nav.logout")}</Button>
         </CardContent>
       </Card>

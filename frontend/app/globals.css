@@ -20,6 +20,12 @@ body {
   min-height: 100dvh;
 }
 
+/* Dark theme page wash + base text. */
+html.dark body {
+  @apply text-gray-100;
+  background: linear-gradient(180deg, #0b1120 0%, #0f172a 100%);
+}
+
 /* Larger, readable base typography for accessibility. */
 body {
   font-size: 1.05rem;
@@ -30,6 +36,82 @@ body {
 .pt-safe { padding-top: env(safe-area-inset-top); }
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 .bottom-safe { bottom: env(safe-area-inset-bottom); }
+
+/* Visible keyboard focus for all interactive elements (mouse clicks stay clean). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Skip-to-content link: hidden until focused, then visible at the top. */
+.skip-link {
+  position: fixed;
+  inset-inline-start: 1rem;
+  top: -4rem;
+  z-index: 100;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.75rem;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* High-contrast mode: keep focus outlines visible against system colors. */
+@media (forced-colors: active) {
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible {
+    outline: 3px solid CanvasText;
+  }
+}
+
+/* ===== Accessibility widget options ===== */
+
+/* Grayscale the whole page. */
+html.a11y-grayscale { filter: grayscale(100%); }
+
+/* Highlight all links so they stand out. */
+html.a11y-highlight-links a {
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+  outline: 2px solid #f59e0b;
+  outline-offset: 1px;
+  background-color: rgba(245, 158, 11, 0.15);
+}
+
+/* High contrast: force a light background with near-black text and strong borders. */
+html.a11y-contrast body { background: #ffffff !important; color: #000000 !important; }
+html.a11y-contrast .text-gray-400,
+html.a11y-contrast .text-gray-500,
+html.a11y-contrast .text-gray-600,
+html.a11y-contrast .text-gray-700,
+html.a11y-contrast .dark\:text-gray-300,
+html.a11y-contrast .dark\:text-gray-400 { color: #000000 !important; }
+html.a11y-contrast a,
+html.a11y-contrast .text-brand { color: #06357a !important; }
+html.a11y-contrast .bg-white,
+html.a11y-contrast .dark\:bg-gray-900,
+html.a11y-contrast .dark\:bg-gray-800 { background: #ffffff !important; }
+html.a11y-contrast [class*="border-gray-"] { border-color: #000000 !important; }
+
+/* OpenDyslexic font (loaded from CDN; falls back to the normal stack if unavailable). */
+@font-face {
+  font-family: "OpenDyslexic";
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/npm/@fontsource/opendyslexic/files/opendyslexic-latin-400-normal.woff2") format("woff2");
+}
+html.a11y-dyslexia,
+html.a11y-dyslexia * { font-family: "OpenDyslexic", var(--font-sans) !important; }
 
 /* Respect reduced-motion preferences. */
 @media (prefers-reduced-motion: reduce) {

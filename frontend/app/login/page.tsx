@@ -34,16 +34,17 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto max-w-md pt-10">
+      <h1 className="sr-only">{t("auth.loginTitle")}</h1>
       <Card>
         <CardHeader><CardTitle>{t("auth.loginTitle")}</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
-            <Input type="email" placeholder={t("auth.email")} value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <Input type="password" placeholder={t("auth.password")} value={password} onChange={(e) => setPassword(e.target.value)} required />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            <Input type="email" aria-label={t("auth.email")} autoComplete="email" placeholder={t("auth.email")} value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <Input type="password" aria-label={t("auth.password")} autoComplete="current-password" placeholder={t("auth.password")} value={password} onChange={(e) => setPassword(e.target.value)} required />
+            {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
             <Button type="submit" className="w-full" disabled={busy}>{busy ? t("common.loading") : t("nav.login")}</Button>
           </form>
-          <p className="mt-4 text-center text-sm text-gray-600">
+          <p className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
             <Link href="/register" className="text-brand hover:underline">{t("nav.register")}</Link>
           </p>
         </CardContent>

@@ -9,10 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 const urgencyColor: Record<UrgencyLevel, string> = {
-  Low: "bg-green-100 text-green-800",
-  Medium: "bg-yellow-100 text-yellow-800",
-  High: "bg-orange-100 text-orange-800",
-  Critical: "bg-red-100 text-red-800",
+  Low: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  Medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  High: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  Critical: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
 };
 
 export function AnalysisCard({
@@ -104,11 +104,11 @@ export function AnalysisCard({
           </Button>
         ) : (
           // Compact, subtle player: rewind 5s · play/pause · seek bar · time.
-          <div className="flex w-full max-w-md items-center gap-2 rounded-full border border-gray-100 bg-white/95 px-3 py-1.5 shadow-soft backdrop-blur">
+          <div className="flex w-full max-w-md items-center gap-2 rounded-full border border-gray-100 bg-white/95 px-3 py-1.5 shadow-soft backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
             <button
               onClick={() => skip(-5)}
               aria-label={t("doc.back5")}
-              className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full text-gray-600 hover:bg-gray-100"
+              className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               <RotateCcw className="h-5 w-5" />
               <span className="absolute text-[8px] font-bold">5</span>
@@ -130,10 +130,10 @@ export function AnalysisCard({
               aria-label={t("doc.seek")}
               className="h-1.5 flex-1 cursor-pointer accent-brand"
             />
-            <span className="shrink-0 text-xs tabular-nums text-gray-500">{fmt(current)} / {fmt(duration)}</span>
+            <span className="shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">{fmt(current)} / {fmt(duration)}</span>
           </div>
         )}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -143,8 +143,8 @@ export function AnalysisCard({
           </span>
         </CardHeader>
         <CardContent>
-          <p className="text-gray-700">{analysis.summary}</p>
-          <p className="mt-2 text-sm text-gray-500">{t("doc.type")}: {analysis.documentType}</p>
+          <p className="text-gray-700 dark:text-gray-300">{analysis.summary}</p>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("doc.type")}: {analysis.documentType}</p>
         </CardContent>
       </Card>
 
@@ -152,7 +152,7 @@ export function AnalysisCard({
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ListChecks className="h-5 w-5 text-brand" />{t("doc.keyPoints")}</CardTitle></CardHeader>
           <CardContent>
-            <ul className="list-inside list-disc space-y-1 text-gray-700">
+            <ul className="list-inside list-disc space-y-1 text-gray-700 dark:text-gray-300">
               {analysis.keyPoints.map((p, i) => <li key={i}>{p}</li>)}
             </ul>
           </CardContent>
@@ -161,7 +161,7 @@ export function AnalysisCard({
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CheckSquare className="h-5 w-5 text-brand" />{t("doc.actions")}</CardTitle></CardHeader>
           <CardContent>
-            <ul className="space-y-2 text-gray-700">
+            <ul className="space-y-2 text-gray-700 dark:text-gray-300">
               {analysis.requiredActions.map((a, i) => (
                 <li key={i} className="flex items-start gap-2">
                   {a.isMandatory && <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-orange-500" />}
@@ -177,9 +177,9 @@ export function AnalysisCard({
         <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Calendar className="h-5 w-5 text-brand" />{t("doc.deadlines")}</CardTitle></CardHeader>
         <CardContent>
           {analysis.deadlines.length === 0 ? (
-            <p className="text-gray-500">—</p>
+            <p className="text-gray-500 dark:text-gray-400">—</p>
           ) : (
-            <ul className="space-y-1 text-gray-700">
+            <ul className="space-y-1 text-gray-700 dark:text-gray-300">
               {analysis.deadlines.map((d, i) => (
                 <li key={i}>
                   {d.date ? <strong>{new Date(d.date).toLocaleDateString()}</strong> : null} {d.description}
@@ -193,11 +193,11 @@ export function AnalysisCard({
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader><CardTitle className="text-lg">{t("doc.amharic")}</CardTitle></CardHeader>
-          <CardContent><p className="whitespace-pre-wrap text-gray-700" dir="ltr">{analysis.translatedAmharic}</p></CardContent>
+          <CardContent><p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300" dir="ltr">{analysis.translatedAmharic}</p></CardContent>
         </Card>
         <Card>
           <CardHeader><CardTitle className="text-lg">{t("doc.simpleHebrew")}</CardTitle></CardHeader>
-          <CardContent><p className="whitespace-pre-wrap text-gray-700" dir="rtl">{analysis.translatedSimpleHebrew}</p></CardContent>
+          <CardContent><p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300" dir="rtl">{analysis.translatedSimpleHebrew}</p></CardContent>
         </Card>
       </div>
     </div>

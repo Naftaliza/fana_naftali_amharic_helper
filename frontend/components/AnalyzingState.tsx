@@ -20,9 +20,9 @@ export function AnalyzingState() {
   }, []);
 
   return (
-    <Card className="animate-fade-in-up">
+    <Card className="animate-fade-in-up" role="status" aria-live="polite">
       <CardContent className="flex flex-col items-center gap-6 py-12 text-center">
-        <Loader2 className="h-12 w-12 animate-spin text-brand" />
+        <Loader2 className="h-12 w-12 animate-spin text-brand" aria-hidden="true" />
         <div className="w-full max-w-xs space-y-3">
           {STEP_KEYS.map((key, i) => {
             const Icon = ICONS[i];
@@ -32,22 +32,22 @@ export function AnalyzingState() {
               <div
                 key={key}
                 className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-start transition-colors ${
-                  active ? "bg-brand-light" : ""
+                  active ? "bg-brand-light dark:bg-brand/20" : ""
                 }`}
               >
                 <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
-                  done ? "bg-accent text-white" : active ? "bg-brand text-white" : "bg-gray-100 text-gray-400"
+                  done ? "bg-accent text-white" : active ? "bg-brand text-white" : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
                 }`}>
                   {done ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                 </span>
-                <span className={active ? "font-medium text-gray-900" : done ? "text-gray-500" : "text-gray-400"}>
+                <span className={active ? "font-medium text-gray-900 dark:text-gray-100" : done ? "text-gray-500 dark:text-gray-400" : "text-gray-400 dark:text-gray-500"}>
                   {t(key)}
                 </span>
               </div>
             );
           })}
         </div>
-        <p className="text-sm text-gray-500">{t("doc.analyzingHint")}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{t("doc.analyzingHint")}</p>
       </CardContent>
     </Card>
   );

@@ -100,8 +100,25 @@ export function CameraCapture({
 
   const close = () => { stop(); onClose(); };
 
+  // Close on Escape, and restore focus to the element that opened the dialog.
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      opener?.focus?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="pt-safe pb-safe fixed inset-0 z-50 flex flex-col bg-black">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("upload.takePhoto")}
+      className="pt-safe pb-safe fixed inset-0 z-50 flex flex-col bg-black"
+    >
       {/* Top bar */}
       <div className="flex items-center justify-between p-4">
         <button onClick={close} aria-label={t("camera.cancel")} className="grid h-11 w-11 place-items-center rounded-full bg-white/15 text-white">
@@ -128,7 +145,7 @@ export function CameraCapture({
           </div>
         ) : preview ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview.url} alt="" className="h-full w-full object-contain" />
+          <img src={preview.url} alt={t("camera.preview")} className="h-full w-full object-contain" />
         ) : (
           <>
             <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
