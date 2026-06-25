@@ -33,10 +33,14 @@ public class ClaudeAiProvider(
         RequireKey();
 
         var system = PromptTemplates.BuildAnalysisPrompt(category);
-        var json = await CallAsync(system, $"DOCUMENT TEXT:\n{documentText}", ct);
+        // Use a forced tool call so the model returns the result as a structured JSON
+        // object (the tool's `input`) rather than free-typed text. This avoids parse
+        // failures when content contains characters that collide with JSON syntax —
+        // e.g. Hebrew abbreviations like בע"מ / עו"ד that use a straight double-quote.
+        var json = await CallToolAsync(system, $"DOCUMENT TEXT:\n{documentText}", ct);
         try
         {
-            var result = JsonSerializer.Deserialize<DocumentAnalysisResult>(ExtractJson(json), JsonOpts);
+            var result = JsonSerializer.Deserialize<DocumentAnalysisResult>(json, JsonOpts);
             if (result is null)
                 throw new InvalidOperationException("The AI returned an empty analysis.");
             return result;
@@ -47,6 +51,54 @@ public class ClaudeAiProvider(
             throw new InvalidOperationException("The AI returned an unparseable analysis. Please try again.");
         }
     }
+
+    // JSON schema for the analysis tool, mirroring DocumentAnalysisResult.
+    private static readonly object AnalysisSchema = new
+    {
+        type = "object",
+        properties = new
+        {
+            summary = new { type = "string" },
+            documentType = new { type = "string" },
+            urgencyLevel = new { type = "string", @enum = new[] { "Low", "Medium", "High", "Critical" } },
+            keyPoints = new { type = "array", items = new { type = "string" } },
+            requiredActions = new
+            {
+                type = "array",
+                items = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        description = new { type = "string" },
+                        isMandatory = new { type = "boolean" }
+                    },
+                    required = new[] { "description", "isMandatory" }
+                }
+            },
+            deadlines = new
+            {
+                type = "array",
+                items = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        date = new { type = new[] { "string", "null" } },
+                        description = new { type = "string" }
+                    },
+                    required = new[] { "description" }
+                }
+            },
+            translatedAmharic = new { type = "string" },
+            translatedSimpleHebrew = new { type = "string" }
+        },
+        required = new[]
+        {
+            "summary", "documentType", "urgencyLevel", "keyPoints",
+            "requiredActions", "deadlines", "translatedAmharic", "translatedSimpleHebrew"
+        }
+    };
 
     public async Task<string> ChatAsync(
         string documentText, IReadOnlyList<ChatTurn> history, string question,
@@ -100,11 +152,58 @@ public class ClaudeAiProvider(
         return doc.RootElement.GetProperty("content")[0].GetProperty("text").GetString() ?? string.Empty;
     }
 
-    /// <summary>Strip any markdown fences the model may wrap JSON in.</summary>
-    private static string ExtractJson(string raw)
+    /// <summary>
+    /// Calls Anthropic with a single forced tool and returns the tool's `input` as raw JSON.
+    /// Because the model fills a JSON object via the tool-call mechanism, the result is
+    /// always well-formed JSON (no escaping pitfalls from free-text output).
+    /// </summary>
+    private async Task<string> CallToolAsync(string system, string user, CancellationToken ct)
     {
-        var start = raw.IndexOf('{');
-        var end = raw.LastIndexOf('}');
-        return start >= 0 && end > start ? raw[start..(end + 1)] : raw;
+        var request = new
+        {
+            model = _opts.AnthropicModel,
+            max_tokens = 8192,
+            system,
+            tools = new[]
+            {
+                new
+                {
+                    name = "submit_analysis",
+                    description = "Return the structured analysis of the document.",
+                    input_schema = AnalysisSchema
+                }
+            },
+            tool_choice = new { type = "tool", name = "submit_analysis" },
+            messages = new[] { new { role = "user", content = user } }
+        };
+
+        using var resp = await AnthropicHttp.SendWithRetryAsync(http, () =>
+        {
+            var msg = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages")
+            {
+                Content = JsonContent.Create(request)
+            };
+            msg.Headers.Add("x-api-key", _opts.AnthropicApiKey);
+            msg.Headers.Add("anthropic-version", "2023-06-01");
+            return msg;
+        }, logger, ct);
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            var err = await resp.Content.ReadAsStringAsync(ct);
+            logger.LogError("Anthropic API failed ({Status}): {Body}", resp.StatusCode, err);
+            throw new InvalidOperationException($"AI request failed: {(int)resp.StatusCode} {resp.StatusCode}");
+        }
+
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        foreach (var block in doc.RootElement.GetProperty("content").EnumerateArray())
+        {
+            if (block.TryGetProperty("type", out var t) && t.GetString() == "tool_use"
+                && block.TryGetProperty("input", out var input))
+            {
+                return input.GetRawText();
+            }
+        }
+        throw new InvalidOperationException("The AI did not return a structured analysis.");
     }
 }
