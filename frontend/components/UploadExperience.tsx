@@ -11,6 +11,7 @@ import { incrementTrial, trialRemaining, TRIAL_LIMIT } from "@/lib/trial";
 import type { AnalysisResult } from "@/lib/types";
 import { AnalysisCard } from "@/components/AnalysisCard";
 import { AnalyzingState } from "@/components/AnalyzingState";
+import { CameraCapture } from "@/components/CameraCapture";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -29,6 +30,7 @@ export function UploadExperience() {
   const [error, setError] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(TRIAL_LIMIT);
   const [trialResult, setTrialResult] = useState<AnalysisResult | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   useEffect(() => { setRemaining(trialRemaining()); }, []);
 
@@ -101,11 +103,16 @@ export function UploadExperience() {
       <p className="text-lg text-gray-600">{t("landing.subheadline")}</p>
 
       <button
-        onClick={() => inputRef.current?.click()}
+        onClick={() => setCameraOpen(true)}
         className="mt-2 flex w-full flex-col items-center justify-center gap-4 rounded-3xl bg-brand-gradient px-8 py-14 text-white shadow-soft transition-transform hover:scale-[1.02] active:scale-100"
       >
         <Camera className="h-20 w-20" />
-        <span className="text-2xl font-bold">{t("upload.bigButton")}</span>
+        <span className="text-2xl font-bold">{t("upload.takePhoto")}</span>
+      </button>
+
+      {/* Secondary: upload an existing file / PDF. */}
+      <button onClick={() => inputRef.current?.click()} className="text-base font-medium text-brand underline-offset-4 hover:underline">
+        {t("upload.orChooseFile")}
       </button>
 
       <p className="text-sm text-gray-500">{t("upload.formats")}</p>
@@ -116,6 +123,14 @@ export function UploadExperience() {
 
       <input ref={inputRef} type="file" accept={ACCEPT} className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0])} />
+
+      {cameraOpen && (
+        <CameraCapture
+          onClose={() => setCameraOpen(false)}
+          onChooseFile={() => inputRef.current?.click()}
+          onCapture={(file) => { setCameraOpen(false); handleFile(file); }}
+        />
+      )}
     </div>
   );
 }
