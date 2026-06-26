@@ -11,7 +11,7 @@ public class RefreshTokenRepository(ISqlConnectionFactory factory) : IRefreshTok
     {
         using var conn = factory.Create();
         return await conn.QuerySingleOrDefaultAsync<RefreshToken>(
-            "SELECT * FROM dbo.RefreshTokens WHERE Token = @token", new { token });
+            "SELECT * FROM RefreshTokens WHERE Token = @token", new { token });
     }
 
     public async Task AddAsync(RefreshToken token, CancellationToken ct = default)
@@ -19,7 +19,7 @@ public class RefreshTokenRepository(ISqlConnectionFactory factory) : IRefreshTok
         using var conn = factory.Create();
         await conn.ExecuteAsync(
             """
-            INSERT INTO dbo.RefreshTokens (Id, UserId, Token, ExpiresAt, CreatedAt, RevokedAt)
+            INSERT INTO RefreshTokens (Id, UserId, Token, ExpiresAt, CreatedAt, RevokedAt)
             VALUES (@Id, @UserId, @Token, @ExpiresAt, @CreatedAt, @RevokedAt)
             """, token);
     }
@@ -28,6 +28,6 @@ public class RefreshTokenRepository(ISqlConnectionFactory factory) : IRefreshTok
     {
         using var conn = factory.Create();
         await conn.ExecuteAsync(
-            "UPDATE dbo.RefreshTokens SET RevokedAt = SYSUTCDATETIME() WHERE Id = @id", new { id });
+            "UPDATE RefreshTokens SET RevokedAt = now() WHERE Id = @id", new { id });
     }
 }

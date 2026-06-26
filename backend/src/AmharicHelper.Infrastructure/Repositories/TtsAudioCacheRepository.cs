@@ -12,7 +12,7 @@ public class TtsAudioCacheRepository(ISqlConnectionFactory factory) : ITtsAudioC
     {
         using var conn = factory.Create();
         var row = await conn.QueryFirstOrDefaultAsync<CacheRow>(
-            "SELECT ContentType, Audio FROM dbo.TtsAudioCache WHERE DocumentId = @documentId AND Language = @language",
+            "SELECT ContentType, Audio FROM TtsAudioCache WHERE DocumentId = @documentId AND Language = @language",
             new { documentId, language = (int)language });
         return row is null ? null : new TtsAudio(row.Audio, row.ContentType);
     }
@@ -23,14 +23,12 @@ public class TtsAudioCacheRepository(ISqlConnectionFactory factory) : ITtsAudioC
         // Upsert: keep a single row per (document, language).
         await conn.ExecuteAsync(
             """
-            MERGE dbo.TtsAudioCache AS target
-            USING (SELECT @DocumentId AS DocumentId, @Language AS Language) AS src
-                ON target.DocumentId = src.DocumentId AND target.Language = src.Language
-            WHEN MATCHED THEN
-                UPDATE SET ContentType = @ContentType, Audio = @Audio, CreatedAt = SYSUTCDATETIME()
-            WHEN NOT MATCHED THEN
-                INSERT (DocumentId, Language, ContentType, Audio)
-                VALUES (@DocumentId, @Language, @ContentType, @Audio);
+            INSERT INTO TtsAudioCache (DocumentId, Language, ContentType, Audio, CreatedAt)
+            VALUES (@DocumentId, @Language, @ContentType, @Audio, now())
+            ON CONFLICT (DocumentId, Language) DO UPDATE
+                SET ContentType = EXCLUDED.ContentType,
+                    Audio = EXCLUDED.Audio,
+                    CreatedAt = now();
             """,
             new
             {
@@ -44,7 +42,7 @@ public class TtsAudioCacheRepository(ISqlConnectionFactory factory) : ITtsAudioC
     public async Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken ct = default)
     {
         using var conn = factory.Create();
-        await conn.ExecuteAsync("DELETE FROM dbo.TtsAudioCache WHERE DocumentId = @documentId", new { documentId });
+        await conn.ExecuteAsync("DELETE FROM TtsAudioCache WHERE DocumentId = @documentId", new { documentId });
     }
 
     private class CacheRow

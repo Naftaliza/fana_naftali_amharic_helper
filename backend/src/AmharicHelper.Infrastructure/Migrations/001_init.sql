@@ -1,75 +1,58 @@
--- Amharic Helper — initial schema. Idempotent: safe to run on every startup.
+-- Amharic Helper - initial schema (PostgreSQL). Idempotent: safe to run on every startup.
+-- Unquoted identifiers fold to lowercase; Dapper maps columns to entity properties
+-- case-insensitively, so the PascalCase names here still bind correctly.
 
-IF OBJECT_ID(N'dbo.Users', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.Users (
-        Id                UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        Email             NVARCHAR(256)    NOT NULL,
-        PasswordHash      NVARCHAR(512)    NOT NULL,
-        DisplayName       NVARCHAR(200)    NOT NULL,
-        PreferredLanguage INT              NOT NULL DEFAULT 0,
-        CreatedAt         DATETIME2        NOT NULL DEFAULT SYSUTCDATETIME()
-    );
-    CREATE UNIQUE INDEX UX_Users_Email ON dbo.Users(Email);
-END;
+CREATE TABLE IF NOT EXISTS Users (
+    Id                UUID        NOT NULL PRIMARY KEY,
+    Email             TEXT        NOT NULL,
+    PasswordHash      TEXT        NOT NULL,
+    DisplayName       TEXT        NOT NULL,
+    PreferredLanguage INT         NOT NULL DEFAULT 0,
+    CreatedAt         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS UX_Users_Email ON Users(Email);
 
-IF OBJECT_ID(N'dbo.RefreshTokens', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.RefreshTokens (
-        Id        UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        UserId    UNIQUEIDENTIFIER NOT NULL,
-        Token     NVARCHAR(512)    NOT NULL,
-        ExpiresAt DATETIME2        NOT NULL,
-        CreatedAt DATETIME2        NOT NULL DEFAULT SYSUTCDATETIME(),
-        RevokedAt DATETIME2        NULL,
-        CONSTRAINT FK_RefreshTokens_Users FOREIGN KEY (UserId) REFERENCES dbo.Users(Id)
-    );
-    CREATE INDEX IX_RefreshTokens_UserId ON dbo.RefreshTokens(UserId);
-    CREATE INDEX IX_RefreshTokens_Token ON dbo.RefreshTokens(Token);
-END;
+CREATE TABLE IF NOT EXISTS RefreshTokens (
+    Id        UUID        NOT NULL PRIMARY KEY,
+    UserId    UUID        NOT NULL REFERENCES Users(Id),
+    Token     TEXT        NOT NULL,
+    ExpiresAt TIMESTAMPTZ NOT NULL,
+    CreatedAt TIMESTAMPTZ NOT NULL DEFAULT now(),
+    RevokedAt TIMESTAMPTZ NULL
+);
+CREATE INDEX IF NOT EXISTS IX_RefreshTokens_UserId ON RefreshTokens(UserId);
+CREATE INDEX IF NOT EXISTS IX_RefreshTokens_Token ON RefreshTokens(Token);
 
-IF OBJECT_ID(N'dbo.Documents', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.Documents (
-        Id          UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        UserId      UNIQUEIDENTIFIER NOT NULL,
-        FileName    NVARCHAR(400)    NOT NULL,
-        FilePath    NVARCHAR(1000)   NOT NULL,
-        ContentType NVARCHAR(200)    NOT NULL,
-        OcrText     NVARCHAR(MAX)    NULL,
-        UploadedAt  DATETIME2        NOT NULL DEFAULT SYSUTCDATETIME(),
-        CONSTRAINT FK_Documents_Users FOREIGN KEY (UserId) REFERENCES dbo.Users(Id)
-    );
-    CREATE INDEX IX_Documents_UserId ON dbo.Documents(UserId);
-END;
+CREATE TABLE IF NOT EXISTS Documents (
+    Id          UUID        NOT NULL PRIMARY KEY,
+    UserId      UUID        NOT NULL REFERENCES Users(Id),
+    FileName    TEXT        NOT NULL,
+    FilePath    TEXT        NOT NULL,
+    ContentType TEXT        NOT NULL,
+    OcrText     TEXT        NULL,
+    UploadedAt  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS IX_Documents_UserId ON Documents(UserId);
 
-IF OBJECT_ID(N'dbo.DocumentAnalyses', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.DocumentAnalyses (
-        Id                     UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        DocumentId             UNIQUEIDENTIFIER NOT NULL,
-        Summary                NVARCHAR(MAX)    NOT NULL DEFAULT N'{}',
-        DocumentType           NVARCHAR(MAX)    NOT NULL DEFAULT N'{}',
-        UrgencyLevel           INT              NOT NULL DEFAULT 0,
-        KeyPointsJson          NVARCHAR(MAX)    NOT NULL DEFAULT N'[]',
-        RequiredActionsJson    NVARCHAR(MAX)    NOT NULL DEFAULT N'[]',
-        DeadlinesJson          NVARCHAR(MAX)    NOT NULL DEFAULT N'[]',
-        ExplanationJson        NVARCHAR(MAX)    NOT NULL DEFAULT N'{}',
-        CreatedAt              DATETIME2        NOT NULL DEFAULT SYSUTCDATETIME(),
-        CONSTRAINT FK_DocumentAnalyses_Documents FOREIGN KEY (DocumentId) REFERENCES dbo.Documents(Id)
-    );
-    CREATE INDEX IX_DocumentAnalyses_DocumentId ON dbo.DocumentAnalyses(DocumentId);
-END;
+CREATE TABLE IF NOT EXISTS DocumentAnalyses (
+    Id                  UUID        NOT NULL PRIMARY KEY,
+    DocumentId          UUID        NOT NULL REFERENCES Documents(Id) ON DELETE CASCADE,
+    Summary             TEXT        NOT NULL DEFAULT '{}',
+    DocumentType        TEXT        NOT NULL DEFAULT '{}',
+    UrgencyLevel        INT         NOT NULL DEFAULT 0,
+    KeyPointsJson       TEXT        NOT NULL DEFAULT '[]',
+    RequiredActionsJson TEXT        NOT NULL DEFAULT '[]',
+    DeadlinesJson       TEXT        NOT NULL DEFAULT '[]',
+    ExplanationJson     TEXT        NOT NULL DEFAULT '{}',
+    CreatedAt           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS IX_DocumentAnalyses_DocumentId ON DocumentAnalyses(DocumentId);
 
-IF OBJECT_ID(N'dbo.ChatMessages', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.ChatMessages (
-        Id         UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        DocumentId UNIQUEIDENTIFIER NOT NULL,
-        Role       INT              NOT NULL,
-        Content    NVARCHAR(MAX)    NOT NULL,
-        CreatedAt  DATETIME2        NOT NULL DEFAULT SYSUTCDATETIME(),
-        CONSTRAINT FK_ChatMessages_Documents FOREIGN KEY (DocumentId) REFERENCES dbo.Documents(Id)
-    );
-    CREATE INDEX IX_ChatMessages_DocumentId ON dbo.ChatMessages(DocumentId);
-END;
+CREATE TABLE IF NOT EXISTS ChatMessages (
+    Id         UUID        NOT NULL PRIMARY KEY,
+    DocumentId UUID        NOT NULL REFERENCES Documents(Id) ON DELETE CASCADE,
+    Role       INT         NOT NULL,
+    Content    TEXT        NOT NULL,
+    CreatedAt  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS IX_ChatMessages_DocumentId ON ChatMessages(DocumentId);

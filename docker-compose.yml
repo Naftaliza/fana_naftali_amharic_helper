@@ -1,16 +1,17 @@
 services:
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+  postgres:
+    image: postgres:16-alpine
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Your_strong_Pass123"
+      POSTGRES_DB: AmharicHelper
+      POSTGRES_USER: fana
+      POSTGRES_PASSWORD: fana_local_pass
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - mssql-data:/var/opt/mssql
+      - pg-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"Your_strong_Pass123\" -No -Q \"SELECT 1\" || exit 1"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U fana -d AmharicHelper"]
+      interval: 5s
       timeout: 5s
       retries: 10
 
@@ -18,11 +19,11 @@ services:
     build:
       context: ./backend
     depends_on:
-      sqlserver:
+      postgres:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__Default: "Server=sqlserver,1433;Database=AmharicHelper;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True;Encrypt=False"
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=AmharicHelper;Username=fana;Password=fana_local_pass"
       Jwt__Secret: "CHANGE_ME_super_secret_key_at_least_32_chars_long_12345"
       Ai__Provider: "Claude"
       Ai__AnthropicApiKey: "${ANTHROPIC_API_KEY:-}"
@@ -46,4 +47,4 @@ services:
       - "3001:3000"
 
 volumes:
-  mssql-data:
+  pg-data:

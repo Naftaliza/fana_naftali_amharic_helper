@@ -1,18 +1,19 @@
 using Dapper;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 
 namespace AmharicHelper.Infrastructure.Persistence;
 
 /// <summary>
-/// Runs the ordered .sql scripts in the Migrations folder on startup. Scripts are written
-/// to be idempotent, so re-running them is safe. Also creates the database if it is missing.
+/// Runs the ordered .sql scripts in the Migrations folder on startup. Scripts are
+/// written to be idempotent (CREATE TABLE IF NOT EXISTS / ON CONFLICT), so re-running
+/// them is safe. The target database is provided by the host (Railway Postgres plugin,
+/// or POSTGRES_DB locally), so this only waits for it to accept connections, then migrates.
 /// </summary>
 public class DatabaseMigrator(ISqlConnectionFactory factory, ILogger<DatabaseMigrator> logger)
 {
     public async Task MigrateAsync(CancellationToken ct = default)
     {
-        await EnsureDatabaseExistsAsync(ct);
+        await WaitForDatabaseAsync(ct);
 
         var dir = Path.Combine(AppContext.BaseDirectory, "Migrations");
         if (!Directory.Exists(dir))
@@ -25,29 +26,36 @@ public class DatabaseMigrator(ISqlConnectionFactory factory, ILogger<DatabaseMig
         foreach (var file in Directory.GetFiles(dir, "*.sql").OrderBy(f => f))
         {
             var sql = await File.ReadAllTextAsync(file, ct);
+            if (string.IsNullOrWhiteSpace(sql)) continue;
             logger.LogInformation("Applying migration {File}", Path.GetFileName(file));
-            // Split on GO batch separators if present.
-            foreach (var batch in SplitBatches(sql))
-            {
-                if (!string.IsNullOrWhiteSpace(batch))
-                    await conn.ExecuteAsync(batch);
-            }
+            // Npgsql executes a whole file (multiple ;-separated statements, including
+            // dollar-quoted blocks) as a single command — no GO/batch splitting needed.
+            await conn.ExecuteAsync(sql);
         }
     }
 
-    private async Task EnsureDatabaseExistsAsync(CancellationToken ct)
+    /// <summary>
+    /// Waits for the database to accept connections. The database can lag behind the API
+    /// on a fresh deploy; retrying here keeps the API from crash-looping on startup.
+    /// </summary>
+    private async Task WaitForDatabaseAsync(CancellationToken ct)
     {
-        var builder = new SqlConnectionStringBuilder(factory.ConnectionString);
-        var dbName = builder.InitialCatalog;
-        builder.InitialCatalog = "master";
-
-        await using var conn = new SqlConnection(builder.ConnectionString);
-        await conn.OpenAsync(ct);
-        await conn.ExecuteAsync(
-            $"IF DB_ID(@db) IS NULL EXEC('CREATE DATABASE [' + @db + ']');",
-            new { db = dbName });
+        const int maxAttempts = 30;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                using var conn = factory.Create();
+                conn.Open();
+                return;
+            }
+            catch (Exception ex) when (attempt < maxAttempts)
+            {
+                logger.LogWarning(
+                    "Database not ready (attempt {Attempt}/{Max}): {Message}. Retrying in 2s...",
+                    attempt, maxAttempts, ex.Message);
+                await Task.Delay(2000, ct);
+            }
+        }
     }
-
-    private static IEnumerable<string> SplitBatches(string sql) =>
-        sql.Split(["\nGO\n", "\nGO\r\n", "\r\nGO\r\n"], StringSplitOptions.None);
 }

@@ -15,7 +15,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
     {
-        // Database
+        // Database (PostgreSQL via Npgsql). Be lenient about DateTime Kind so UTC
+        // timestamps from the domain map cleanly to timestamptz columns.
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
         var connectionString = config.GetConnectionString("Default")
             ?? throw new InvalidOperationException("ConnectionStrings:Default is not configured.");
         services.AddSingleton<ISqlConnectionFactory>(new SqlConnectionFactory(connectionString));

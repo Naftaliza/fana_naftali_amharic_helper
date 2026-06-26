@@ -11,7 +11,7 @@ public class ChatMessageRepository(ISqlConnectionFactory factory) : IChatMessage
     {
         using var conn = factory.Create();
         var rows = await conn.QueryAsync<ChatMessage>(
-            "SELECT * FROM dbo.ChatMessages WHERE DocumentId = @documentId ORDER BY CreatedAt ASC",
+            "SELECT * FROM ChatMessages WHERE DocumentId = @documentId ORDER BY CreatedAt ASC",
             new { documentId });
         return rows.ToList();
     }
@@ -21,7 +21,7 @@ public class ChatMessageRepository(ISqlConnectionFactory factory) : IChatMessage
         using var conn = factory.Create();
         await conn.ExecuteAsync(
             """
-            INSERT INTO dbo.ChatMessages (Id, DocumentId, Role, Content, CreatedAt)
+            INSERT INTO ChatMessages (Id, DocumentId, Role, Content, CreatedAt)
             VALUES (@Id, @DocumentId, @Role, @Content, @CreatedAt)
             """,
             new { message.Id, message.DocumentId, Role = (int)message.Role, message.Content, message.CreatedAt });
@@ -30,6 +30,6 @@ public class ChatMessageRepository(ISqlConnectionFactory factory) : IChatMessage
     public async Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken ct = default)
     {
         using var conn = factory.Create();
-        await conn.ExecuteAsync("DELETE FROM dbo.ChatMessages WHERE DocumentId = @documentId", new { documentId });
+        await conn.ExecuteAsync("DELETE FROM ChatMessages WHERE DocumentId = @documentId", new { documentId });
     }
 }

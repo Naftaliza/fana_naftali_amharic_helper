@@ -1,7 +1,7 @@
 # Deployment Guide — Amharic Helper
 
 Two platforms: **Netlify** hosts the Next.js frontend; **Railway** hosts the .NET API
-and SQL Server (Netlify can't run .NET or SQL). Branch: `fana_mvp`.
+and a managed **PostgreSQL** database (Netlify can't run .NET or a database). Branch: `fana_mvp`.
 
 Live backend: `https://fananaftaliamharichelper-production.up.railway.app` (`/health` → `{"status":"ok"}`).
 
@@ -11,41 +11,35 @@ Live backend: `https://fananaftaliamharichelper-production.up.railway.app` (`/he
 
 Project contains two services in the `production` environment.
 
-### `sqlserver` service
-- **Build from the repo Dockerfile, not the stock image** — Source = GitHub repo,
-  **Root Directory = `backend/sqlserver`** (builds [backend/sqlserver/Dockerfile](backend/sqlserver/Dockerfile)).
-  That image wraps `mcr.microsoft.com/mssql/server:2022-latest` with a root entrypoint
-  ([entrypoint.sh](backend/sqlserver/entrypoint.sh)) that `chown`s the mounted volume to the
-  non-root `mssql` user at runtime, then drops privileges to start the engine. This is
-  what makes a **persistent volume** work (the stock image can't write a root-owned
-  Railway volume → the old "Access is denied" / `launch_sqlservr.sh: Killed` boot crash).
-- Variables:
-  - `ACCEPT_EULA=Y`
-  - `MSSQL_SA_PASSWORD=Fana_Prod_Pass_2026!`
-  - `MSSQL_PID=Developer`
-  - `MSSQL_MEMORY_LIMIT_MB=3072`  ← caps SQL's memory so it doesn't read the host's
-    full RAM and get OOM-killed. Required on Railway.
-- **Volume:** attach a Railway volume to this service with **Mount path = `/var/opt/mssql`**.
-  The entrypoint fixes its ownership on boot, so the database (users, documents, analyses)
-  now **survives redeploys** instead of resetting. Verified locally: data persists across
-  a full container restart on a fresh volume.
-- Private hostname: `sqlserver.railway.internal` (IPv4 & IPv6).
+### `Postgres` service (managed database)
+- Add Railway's **PostgreSQL** plugin/service (New → Database → PostgreSQL). Railway
+  provisions it with a **persistent volume that just works** — no custom image, no volume
+  permission/IO hacks. This replaces the old SQL Server service, which could not run on
+  Railway's volume (fatal `misaligned log IOs` / Stack Overflow on boot).
+- It exposes `DATABASE_URL` (a `postgresql://user:pass@host:port/db` URL) plus `PGHOST`,
+  `PGUSER`, etc. The API reads `DATABASE_URL` directly — the app converts the URL to an
+  Npgsql connection string (see [SqlConnectionFactory.cs](backend/src/AmharicHelper.Infrastructure/Persistence/SqlConnectionFactory.cs)).
+- The app creates its own tables on startup (idempotent migrations in
+  [Migrations/](backend/src/AmharicHelper.Infrastructure/Migrations)), so no manual schema setup.
 
-> One-time switch on the live project (only you can click these in the Railway dashboard):
-> 1. `sqlserver` service → **Settings → Source**: set repo + **Root Directory = `backend/sqlserver`** (was the stock image).
-> 2. `sqlserver` service → **Settings → Volumes → New Volume**, mount path **`/var/opt/mssql`**.
-> 3. **Deploy.** First boot creates a fresh DB on the volume; every deploy after keeps it.
+> One-time switch on the live project (Railway dashboard):
+> 1. Delete the old `sqlserver` service (and its volume) entirely.
+> 2. **New → Database → Add PostgreSQL.**
+> 3. On the **API** service → **Variables**, set `ConnectionStrings__Default` to reference the
+>    DB URL: value `${{Postgres.DATABASE_URL}}` (use whatever the Postgres service is named).
+> 4. **Deploy** the API. It waits for the DB, runs migrations, and is ready — data now
+>    survives every redeploy.
 
 ### `fana_naftali_amharic_helper` service (API)
 - Source: GitHub repo, **Root Directory = `backend`**, build = Dockerfile (`backend/Dockerfile`).
-- **Settings → Networking → Outbound IPv6 = ON** (lets the API reach SQL over the
-  IPv6 private network; without it you get pre-login handshake resets via the public proxy).
+- Outbound IPv6 / TCP-proxy tweaks from the SQL Server era are **no longer needed** — Npgsql
+  connects to the Postgres service over Railway's private network using `DATABASE_URL`.
 - Public domain generated on port **8080**.
 - Variables (note the **double-underscore** config keys, NOT bare env names):
 
   | Variable | Value |
   |---|---|
-  | `ConnectionStrings__Default` | `Server=sqlserver.railway.internal,1433;Database=AmharicHelper;User Id=sa;Password=Fana_Prod_Pass_2026!;TrustServerCertificate=True;Encrypt=False` |
+  | `ConnectionStrings__Default` | `${{Postgres.DATABASE_URL}}` (reference the Postgres service's URL; or paste a `Host=...;Port=...;Database=...;Username=...;Password=...` string) |
   | `Jwt__Secret` | strong value, ≥32 chars |
   | `Jwt__Issuer` | `AmharicHelper` |
   | `Jwt__Audience` | `AmharicHelperClient` |
@@ -97,5 +91,5 @@ The API splits this on commas (CORS multi-origin in
 ## Security TODO
 
 The Azure + Anthropic keys were shared during setup — **rotate them** and update the
-Railway variables. Consider rotating `MSSQL_SA_PASSWORD` too (the SQL TCP proxy, if
-enabled, exposes the DB publicly behind only this password).
+Railway variables. The Postgres credentials are managed by Railway; if you ever expose
+the DB via a public TCP proxy, rotate its password and keep the proxy disabled otherwise.

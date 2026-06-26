@@ -14,7 +14,7 @@ public class DocumentAnalysisRepository(ISqlConnectionFactory factory) : IDocume
         using var conn = factory.Create();
         // Take the most recent analysis; tolerate legacy duplicate rows.
         var row = await conn.QueryFirstOrDefaultAsync<AnalysisRow>(
-            "SELECT TOP 1 * FROM dbo.DocumentAnalyses WHERE DocumentId = @documentId ORDER BY CreatedAt DESC",
+            "SELECT * FROM DocumentAnalyses WHERE DocumentId = @documentId ORDER BY CreatedAt DESC LIMIT 1",
             new { documentId });
         return row?.ToEntity();
     }
@@ -24,7 +24,7 @@ public class DocumentAnalysisRepository(ISqlConnectionFactory factory) : IDocume
         using var conn = factory.Create();
         await conn.ExecuteAsync(
             """
-            INSERT INTO dbo.DocumentAnalyses
+            INSERT INTO DocumentAnalyses
                 (Id, DocumentId, Summary, DocumentType, UrgencyLevel, KeyPointsJson,
                  RequiredActionsJson, DeadlinesJson, ExplanationJson, CreatedAt)
             VALUES
@@ -49,7 +49,7 @@ public class DocumentAnalysisRepository(ISqlConnectionFactory factory) : IDocume
     public async Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken ct = default)
     {
         using var conn = factory.Create();
-        await conn.ExecuteAsync("DELETE FROM dbo.DocumentAnalyses WHERE DocumentId = @documentId", new { documentId });
+        await conn.ExecuteAsync("DELETE FROM DocumentAnalyses WHERE DocumentId = @documentId", new { documentId });
     }
 
     /// <summary>Raw row matching the SQL columns; JSON columns are deserialized in <see cref="ToEntity"/>.</summary>
