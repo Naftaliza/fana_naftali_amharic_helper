@@ -26,23 +26,22 @@ public class DocumentAnalysisRepository(ISqlConnectionFactory factory) : IDocume
             """
             INSERT INTO dbo.DocumentAnalyses
                 (Id, DocumentId, Summary, DocumentType, UrgencyLevel, KeyPointsJson,
-                 RequiredActionsJson, DeadlinesJson, TranslatedAmharic, TranslatedSimpleHebrew, CreatedAt)
+                 RequiredActionsJson, DeadlinesJson, ExplanationJson, CreatedAt)
             VALUES
                 (@Id, @DocumentId, @Summary, @DocumentType, @UrgencyLevel, @KeyPointsJson,
-                 @RequiredActionsJson, @DeadlinesJson, @TranslatedAmharic, @TranslatedSimpleHebrew, @CreatedAt)
+                 @RequiredActionsJson, @DeadlinesJson, @ExplanationJson, @CreatedAt)
             """,
             new
             {
                 analysis.Id,
                 analysis.DocumentId,
-                analysis.Summary,
-                analysis.DocumentType,
+                Summary = JsonSerializer.Serialize(analysis.Summary),
+                DocumentType = JsonSerializer.Serialize(analysis.DocumentType),
                 UrgencyLevel = (int)analysis.UrgencyLevel,
                 KeyPointsJson = JsonSerializer.Serialize(analysis.KeyPoints),
                 RequiredActionsJson = JsonSerializer.Serialize(analysis.RequiredActions),
                 DeadlinesJson = JsonSerializer.Serialize(analysis.Deadlines),
-                analysis.TranslatedAmharic,
-                analysis.TranslatedSimpleHebrew,
+                ExplanationJson = JsonSerializer.Serialize(analysis.Explanation),
                 analysis.CreatedAt
             });
     }
@@ -58,28 +57,26 @@ public class DocumentAnalysisRepository(ISqlConnectionFactory factory) : IDocume
     {
         public Guid Id { get; set; }
         public Guid DocumentId { get; set; }
-        public string Summary { get; set; } = string.Empty;
-        public string DocumentType { get; set; } = string.Empty;
+        public string Summary { get; set; } = "{}";
+        public string DocumentType { get; set; } = "{}";
         public int UrgencyLevel { get; set; }
         public string KeyPointsJson { get; set; } = "[]";
         public string RequiredActionsJson { get; set; } = "[]";
         public string DeadlinesJson { get; set; } = "[]";
-        public string TranslatedAmharic { get; set; } = string.Empty;
-        public string TranslatedSimpleHebrew { get; set; } = string.Empty;
+        public string ExplanationJson { get; set; } = "{}";
         public DateTime CreatedAt { get; set; }
 
         public DocumentAnalysis ToEntity() => new()
         {
             Id = Id,
             DocumentId = DocumentId,
-            Summary = Summary,
-            DocumentType = DocumentType,
+            Summary = JsonSerializer.Deserialize<LocalizedText>(Summary) ?? new(),
+            DocumentType = JsonSerializer.Deserialize<LocalizedText>(DocumentType) ?? new(),
             UrgencyLevel = (UrgencyLevel)UrgencyLevel,
-            KeyPoints = JsonSerializer.Deserialize<List<string>>(KeyPointsJson) ?? new(),
+            KeyPoints = JsonSerializer.Deserialize<List<LocalizedText>>(KeyPointsJson) ?? new(),
             RequiredActions = JsonSerializer.Deserialize<List<RequiredAction>>(RequiredActionsJson) ?? new(),
             Deadlines = JsonSerializer.Deserialize<List<Deadline>>(DeadlinesJson) ?? new(),
-            TranslatedAmharic = TranslatedAmharic,
-            TranslatedSimpleHebrew = TranslatedSimpleHebrew,
+            Explanation = JsonSerializer.Deserialize<LocalizedText>(ExplanationJson) ?? new(),
             CreatedAt = CreatedAt
         };
     }

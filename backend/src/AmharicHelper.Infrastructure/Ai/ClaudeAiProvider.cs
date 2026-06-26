@@ -52,16 +52,29 @@ public class ClaudeAiProvider(
         }
     }
 
+    // A textual field localized to all three languages (mirrors LocalizedText).
+    private static object LocalizedSchema() => new
+    {
+        type = "object",
+        properties = new
+        {
+            he = new { type = "string" },
+            am = new { type = "string" },
+            en = new { type = "string" }
+        },
+        required = new[] { "he", "am", "en" }
+    };
+
     // JSON schema for the analysis tool, mirroring DocumentAnalysisResult.
     private static readonly object AnalysisSchema = new
     {
         type = "object",
         properties = new
         {
-            summary = new { type = "string" },
-            documentType = new { type = "string" },
+            summary = LocalizedSchema(),
+            documentType = LocalizedSchema(),
             urgencyLevel = new { type = "string", @enum = new[] { "Low", "Medium", "High", "Critical" } },
-            keyPoints = new { type = "array", items = new { type = "string" } },
+            keyPoints = new { type = "array", items = LocalizedSchema() },
             requiredActions = new
             {
                 type = "array",
@@ -70,7 +83,7 @@ public class ClaudeAiProvider(
                     type = "object",
                     properties = new
                     {
-                        description = new { type = "string" },
+                        description = LocalizedSchema(),
                         isMandatory = new { type = "boolean" }
                     },
                     required = new[] { "description", "isMandatory" }
@@ -85,18 +98,17 @@ public class ClaudeAiProvider(
                     properties = new
                     {
                         date = new { type = new[] { "string", "null" } },
-                        description = new { type = "string" }
+                        description = LocalizedSchema()
                     },
                     required = new[] { "description" }
                 }
             },
-            translatedAmharic = new { type = "string" },
-            translatedSimpleHebrew = new { type = "string" }
+            explanation = LocalizedSchema()
         },
         required = new[]
         {
             "summary", "documentType", "urgencyLevel", "keyPoints",
-            "requiredActions", "deadlines", "translatedAmharic", "translatedSimpleHebrew"
+            "requiredActions", "deadlines", "explanation"
         }
     };
 

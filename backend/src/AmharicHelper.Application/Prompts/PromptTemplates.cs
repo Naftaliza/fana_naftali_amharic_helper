@@ -26,19 +26,24 @@ public static class PromptTemplates
            For medical documents, explain only what the document/process is.
         5. Write warmly and simply — imagine explaining to a kind neighbor with limited Hebrew.
 
+        LANGUAGE: Every textual field is an object with the SAME meaning written in all three
+        languages — Hebrew (עברית), Amharic (አማርኛ), and English: { "he": "", "am": "", "en": "" }.
+        Never leave any of the three blank, and never mix languages inside a single value
+        (e.g. the "am" value must be entirely in Amharic, the "he" value entirely in Hebrew).
+        Keep the Hebrew warm and simple (everyday words).
+
         OUTPUT: Return ONLY a JSON object with this exact shape (no markdown, no commentary):
         {
-          "summary": "",
-          "documentType": "",
+          "summary": { "he": "", "am": "", "en": "" },
+          "documentType": { "he": "", "am": "", "en": "" },
           "urgencyLevel": "Low|Medium|High|Critical",
-          "keyPoints": [],
-          "requiredActions": [{ "description": "", "isMandatory": true }],
-          "deadlines": [{ "date": "YYYY-MM-DD or null", "description": "" }],
-          "translatedAmharic": "",
-          "translatedSimpleHebrew": ""
+          "keyPoints": [{ "he": "", "am": "", "en": "" }],
+          "requiredActions": [{ "description": { "he": "", "am": "", "en": "" }, "isMandatory": true }],
+          "deadlines": [{ "date": "YYYY-MM-DD or null", "description": { "he": "", "am": "", "en": "" } }],
+          "explanation": { "he": "", "am": "", "en": "" }
         }
-        - "translatedAmharic": a clear explanation of the document in Amharic (አማርኛ).
-        - "translatedSimpleHebrew": a simple-Hebrew explanation using everyday words.
+        - "summary": a short one or two sentence overview.
+        - "explanation": a longer, clear plain-language walkthrough of the document.
         """;
 
     /// <summary>Category-specific guidance appended to the base analysis prompt.</summary>

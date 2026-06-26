@@ -69,6 +69,7 @@ public record AnalyzeDocumentCommand(Guid UserId, Guid DocumentId, DocumentCateg
 public class AnalyzeDocumentHandler(
     IDocumentRepository documents,
     IDocumentAnalysisRepository analyses,
+    ITtsAudioCacheRepository ttsCache,
     IAiProvider ai) : IRequestHandler<AnalyzeDocumentCommand, Result<DocumentAnalysisResult>>
 {
     public async Task<Result<DocumentAnalysisResult>> Handle(AnalyzeDocumentCommand cmd, CancellationToken ct)
@@ -91,7 +92,9 @@ public class AnalyzeDocumentHandler(
         }
 
         // Re-analyzing replaces the previous result rather than stacking duplicates.
+        // The spoken text changes too, so drop any cached audio for this document.
         await analyses.DeleteByDocumentIdAsync(doc.Id, ct);
+        await ttsCache.DeleteByDocumentIdAsync(doc.Id, ct);
         await analyses.AddAsync(new DocumentAnalysis
         {
             DocumentId = doc.Id,
@@ -103,8 +106,7 @@ public class AnalyzeDocumentHandler(
                 .Select(a => new RequiredAction(a.Description, a.IsMandatory)).ToList(),
             Deadlines = result.Deadlines
                 .Select(d => new Deadline(d.Date, d.Description)).ToList(),
-            TranslatedAmharic = result.TranslatedAmharic,
-            TranslatedSimpleHebrew = result.TranslatedSimpleHebrew
+            Explanation = result.Explanation
         }, ct);
 
         return Result<DocumentAnalysisResult>.Ok(result);

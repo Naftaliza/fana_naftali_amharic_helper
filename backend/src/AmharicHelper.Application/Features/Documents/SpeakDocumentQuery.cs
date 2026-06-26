@@ -13,6 +13,7 @@ public record SpeakDocumentQuery(Guid UserId, Guid DocumentId, Language Language
 public class SpeakDocumentHandler(
     IDocumentRepository documents,
     IDocumentAnalysisRepository analyses,
+    ITtsAudioCacheRepository cache,
     ITtsProvider tts) : IRequestHandler<SpeakDocumentQuery, Result<TtsAudio>>
 {
     public async Task<Result<TtsAudio>> Handle(SpeakDocumentQuery q, CancellationToken ct)
@@ -20,6 +21,11 @@ public class SpeakDocumentHandler(
         var doc = await documents.GetByIdAsync(q.DocumentId, ct);
         if (doc is null || doc.UserId != q.UserId)
             return Result<TtsAudio>.Fail("Document not found.");
+
+        // Serve previously synthesized audio for this document+language for free.
+        var cached = await cache.GetAsync(q.DocumentId, q.Language, ct);
+        if (cached is not null)
+            return Result<TtsAudio>.Ok(cached);
 
         var analysis = await analyses.GetByDocumentIdAsync(q.DocumentId, ct);
         if (analysis is null)
@@ -32,6 +38,8 @@ public class SpeakDocumentHandler(
         try
         {
             var audio = await tts.SynthesizeAsync(text, q.Language, ct);
+            // Cache so this document+language is never billed again until re-analyzed.
+            await cache.SetAsync(q.DocumentId, q.Language, audio, ct);
             return Result<TtsAudio>.Ok(audio);
         }
         catch (InvalidOperationException ex)

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckSquare, Calendar, ListChecks, Volume2, Loader2, Play, Pause, RotateCcw } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/api";
-import { LANGUAGE_ENUM, type AnalysisResult, type UrgencyLevel } from "@/lib/types";
+import { LANGUAGE_ENUM, isRtl, loc, type AnalysisResult, type UrgencyLevel } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -25,6 +25,8 @@ export function AnalysisCard({
   trial?: boolean;
 }) {
   const { t, language } = useLanguage();
+  // Analysis content is shown in the chosen language; direction follows that language.
+  const dir = isRtl(language) ? "rtl" : "ltr";
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);   // audio fetched & loaded
@@ -40,6 +42,23 @@ export function AnalysisCard({
       if (audioRef.current?.src) URL.revokeObjectURL(audioRef.current.src);
     };
   }, []);
+
+  // The audio is generated for one language. When the user switches language,
+  // discard it and reset to the "Listen" button so the next play re-fetches in
+  // the new language (otherwise it keeps playing the previous language).
+  useEffect(() => {
+    const a = audioRef.current;
+    if (a) {
+      a.pause();
+      if (a.src) URL.revokeObjectURL(a.src);
+      audioRef.current = null;
+    }
+    setReady(false);
+    setPlaying(false);
+    setDuration(0);
+    setCurrent(0);
+    setError(null);
+  }, [language]);
 
   // First click: fetch the audio, wire up the player, and start playing.
   const start = async () => {
@@ -143,8 +162,8 @@ export function AnalysisCard({
           </span>
         </CardHeader>
         <CardContent>
-          <p className="text-gray-700 dark:text-gray-300">{analysis.summary}</p>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("doc.type")}: {analysis.documentType}</p>
+          <p className="text-gray-700 dark:text-gray-300" dir={dir}>{loc(analysis.summary, language)}</p>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400" dir={dir}>{t("doc.type")}: {loc(analysis.documentType, language)}</p>
         </CardContent>
       </Card>
 
@@ -152,8 +171,8 @@ export function AnalysisCard({
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ListChecks className="h-5 w-5 text-brand" />{t("doc.keyPoints")}</CardTitle></CardHeader>
           <CardContent>
-            <ul className="list-inside list-disc space-y-1 text-gray-700 dark:text-gray-300">
-              {analysis.keyPoints.map((p, i) => <li key={i}>{p}</li>)}
+            <ul className="list-inside list-disc space-y-1 text-gray-700 dark:text-gray-300" dir={dir}>
+              {analysis.keyPoints.map((p, i) => <li key={i}>{loc(p, language)}</li>)}
             </ul>
           </CardContent>
         </Card>
@@ -161,11 +180,11 @@ export function AnalysisCard({
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CheckSquare className="h-5 w-5 text-brand" />{t("doc.actions")}</CardTitle></CardHeader>
           <CardContent>
-            <ul className="space-y-2 text-gray-700 dark:text-gray-300">
+            <ul className="space-y-2 text-gray-700 dark:text-gray-300" dir={dir}>
               {analysis.requiredActions.map((a, i) => (
                 <li key={i} className="flex items-start gap-2">
                   {a.isMandatory && <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-orange-500" />}
-                  <span>{a.description}</span>
+                  <span>{loc(a.description, language)}</span>
                 </li>
               ))}
             </ul>
@@ -179,10 +198,10 @@ export function AnalysisCard({
           {analysis.deadlines.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400">—</p>
           ) : (
-            <ul className="space-y-1 text-gray-700 dark:text-gray-300">
+            <ul className="space-y-1 text-gray-700 dark:text-gray-300" dir={dir}>
               {analysis.deadlines.map((d, i) => (
                 <li key={i}>
-                  {d.date ? <strong>{new Date(d.date).toLocaleDateString()}</strong> : null} {d.description}
+                  {d.date ? <strong>{new Date(d.date).toLocaleDateString()}</strong> : null} {loc(d.description, language)}
                 </li>
               ))}
             </ul>
@@ -190,16 +209,10 @@ export function AnalysisCard({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle className="text-lg">{t("doc.amharic")}</CardTitle></CardHeader>
-          <CardContent><p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300" dir="ltr">{analysis.translatedAmharic}</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-lg">{t("doc.simpleHebrew")}</CardTitle></CardHeader>
-          <CardContent><p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300" dir="rtl">{analysis.translatedSimpleHebrew}</p></CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader><CardTitle className="text-lg">{t("doc.explanation")}</CardTitle></CardHeader>
+        <CardContent><p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300" dir={dir}>{loc(analysis.explanation, language)}</p></CardContent>
+      </Card>
     </div>
   );
 }

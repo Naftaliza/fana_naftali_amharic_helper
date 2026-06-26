@@ -48,14 +48,13 @@ BEGIN
     CREATE TABLE dbo.DocumentAnalyses (
         Id                     UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
         DocumentId             UNIQUEIDENTIFIER NOT NULL,
-        Summary                NVARCHAR(MAX)    NOT NULL,
-        DocumentType           NVARCHAR(400)    NOT NULL,
+        Summary                NVARCHAR(MAX)    NOT NULL DEFAULT N'{}',
+        DocumentType           NVARCHAR(MAX)    NOT NULL DEFAULT N'{}',
         UrgencyLevel           INT              NOT NULL DEFAULT 0,
         KeyPointsJson          NVARCHAR(MAX)    NOT NULL DEFAULT N'[]',
         RequiredActionsJson    NVARCHAR(MAX)    NOT NULL DEFAULT N'[]',
         DeadlinesJson          NVARCHAR(MAX)    NOT NULL DEFAULT N'[]',
-        TranslatedAmharic      NVARCHAR(MAX)    NOT NULL DEFAULT N'',
-        TranslatedSimpleHebrew NVARCHAR(MAX)    NOT NULL DEFAULT N'',
+        ExplanationJson        NVARCHAR(MAX)    NOT NULL DEFAULT N'{}',
         CreatedAt              DATETIME2        NOT NULL DEFAULT SYSUTCDATETIME(),
         CONSTRAINT FK_DocumentAnalyses_Documents FOREIGN KEY (DocumentId) REFERENCES dbo.Documents(Id)
     );

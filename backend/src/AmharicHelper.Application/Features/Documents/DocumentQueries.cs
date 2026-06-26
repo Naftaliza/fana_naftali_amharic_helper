@@ -49,8 +49,7 @@ public class GetDocumentHandler(
                 .Select(a => new RequiredActionDto { Description = a.Description, IsMandatory = a.IsMandatory }).ToList(),
             Deadlines = analysis.Deadlines
                 .Select(d => new DeadlineDto { Date = d.Date, Description = d.Description }).ToList(),
-            TranslatedAmharic = analysis.TranslatedAmharic,
-            TranslatedSimpleHebrew = analysis.TranslatedSimpleHebrew
+            Explanation = analysis.Explanation
         };
 
         return Result<DocumentDetailDto>.Ok(

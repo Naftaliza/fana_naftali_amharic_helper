@@ -1,4 +1,5 @@
 using AmharicHelper.Domain.Entities;
+using AmharicHelper.Domain.Enums;
 
 namespace AmharicHelper.Application.Abstractions;
 
@@ -30,6 +31,17 @@ public interface IDocumentAnalysisRepository
 {
     Task<DocumentAnalysis?> GetByDocumentIdAsync(Guid documentId, CancellationToken ct = default);
     Task AddAsync(DocumentAnalysis analysis, CancellationToken ct = default);
+    Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Caches synthesized TTS audio per (document, language) so repeated listens don't
+/// re-bill the speech provider. Invalidated when the document is re-analyzed or deleted.
+/// </summary>
+public interface ITtsAudioCacheRepository
+{
+    Task<TtsAudio?> GetAsync(Guid documentId, Language language, CancellationToken ct = default);
+    Task SetAsync(Guid documentId, Language language, TtsAudio audio, CancellationToken ct = default);
     Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken ct = default);
 }
 

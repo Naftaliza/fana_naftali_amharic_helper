@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<IDocumentAnalysisRepository, DocumentAnalysisRepository>();
         services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
+        services.AddScoped<ITtsAudioCacheRepository, TtsAudioCacheRepository>();
 
         // Security
         services.Configure<JwtOptions>(config.GetSection("Jwt"));

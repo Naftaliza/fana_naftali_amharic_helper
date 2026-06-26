@@ -26,8 +26,7 @@ public static class SpokenTextBuilder
         Build(new DocumentAnalysis
         {
             Summary = analysis.Summary,
-            TranslatedAmharic = analysis.TranslatedAmharic,
-            TranslatedSimpleHebrew = analysis.TranslatedSimpleHebrew,
+            Explanation = analysis.Explanation,
             KeyPoints = analysis.KeyPoints,
             RequiredActions = analysis.RequiredActions.Select(a => new RequiredAction(a.Description, a.IsMandatory)).ToList(),
             Deadlines = analysis.Deadlines.Select(d => new Deadline(d.Date, d.Description)).ToList()
@@ -38,28 +37,25 @@ public static class SpokenTextBuilder
         var l = LabelsFor(language);
         var sb = new StringBuilder();
 
-        // Main explanation in the listener's language.
-        var explanation = language switch
-        {
-            Language.Amharic => analysis.TranslatedAmharic,
-            Language.Hebrew => analysis.TranslatedSimpleHebrew,
-            _ => analysis.Summary
-        };
+        // Everything below is read in the listener's single language — no code-switching.
+        var explanation = analysis.Explanation.For(language);
+        if (string.IsNullOrWhiteSpace(explanation))
+            explanation = analysis.Summary.For(language);
         if (!string.IsNullOrWhiteSpace(explanation))
             sb.Append($"{l.Summary}. {explanation}. ");
 
         if (analysis.KeyPoints.Count > 0)
-            sb.Append($"{l.KeyPoints}. {string.Join(". ", analysis.KeyPoints)}. ");
+            sb.Append($"{l.KeyPoints}. {string.Join(". ", analysis.KeyPoints.Select(p => p.For(language)))}. ");
 
         if (analysis.RequiredActions.Count > 0)
-            sb.Append($"{l.Actions}. {string.Join(". ", analysis.RequiredActions.Select(a => a.Description))}. ");
+            sb.Append($"{l.Actions}. {string.Join(". ", analysis.RequiredActions.Select(a => a.Description.For(language)))}. ");
 
         if (analysis.Deadlines.Count > 0)
         {
             var deadlines = analysis.Deadlines.Select(d =>
             {
                 var date = d.Date?.ToString("d") ?? "";
-                return $"{date} {d.Description}".Trim();
+                return $"{date} {d.Description.For(language)}".Trim();
             });
             sb.Append($"{l.Deadlines}. {string.Join(". ", deadlines)}.");
         }
