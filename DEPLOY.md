@@ -12,17 +12,29 @@ Live backend: `https://fananaftaliamharichelper-production.up.railway.app` (`/he
 Project contains two services in the `production` environment.
 
 ### `sqlserver` service
-- Image: `mcr.microsoft.com/mssql/server:2022-latest`
+- **Build from the repo Dockerfile, not the stock image** — Source = GitHub repo,
+  **Root Directory = `backend/sqlserver`** (builds [backend/sqlserver/Dockerfile](backend/sqlserver/Dockerfile)).
+  That image wraps `mcr.microsoft.com/mssql/server:2022-latest` with a root entrypoint
+  ([entrypoint.sh](backend/sqlserver/entrypoint.sh)) that `chown`s the mounted volume to the
+  non-root `mssql` user at runtime, then drops privileges to start the engine. This is
+  what makes a **persistent volume** work (the stock image can't write a root-owned
+  Railway volume → the old "Access is denied" / `launch_sqlservr.sh: Killed` boot crash).
 - Variables:
   - `ACCEPT_EULA=Y`
   - `MSSQL_SA_PASSWORD=Fana_Prod_Pass_2026!`
   - `MSSQL_PID=Developer`
   - `MSSQL_MEMORY_LIMIT_MB=3072`  ← caps SQL's memory so it doesn't read the host's
     full RAM and get OOM-killed. Required on Railway.
-- **No volume** attached (the mssql container runs as non-root and can't write a
-  root-owned Railway volume → permission crash). Trade-off: DB resets on redeploy.
-  Acceptable for the MVP. Migrations recreate the schema on every boot.
+- **Volume:** attach a Railway volume to this service with **Mount path = `/var/opt/mssql`**.
+  The entrypoint fixes its ownership on boot, so the database (users, documents, analyses)
+  now **survives redeploys** instead of resetting. Verified locally: data persists across
+  a full container restart on a fresh volume.
 - Private hostname: `sqlserver.railway.internal` (IPv4 & IPv6).
+
+> One-time switch on the live project (only you can click these in the Railway dashboard):
+> 1. `sqlserver` service → **Settings → Source**: set repo + **Root Directory = `backend/sqlserver`** (was the stock image).
+> 2. `sqlserver` service → **Settings → Volumes → New Volume**, mount path **`/var/opt/mssql`**.
+> 3. **Deploy.** First boot creates a fresh DB on the volume; every deploy after keeps it.
 
 ### `fana_naftali_amharic_helper` service (API)
 - Source: GitHub repo, **Root Directory = `backend`**, build = Dockerfile (`backend/Dockerfile`).
