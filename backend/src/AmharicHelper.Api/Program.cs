@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using AmharicHelper.Api.Middleware;
 using AmharicHelper.Application;
 using AmharicHelper.Infrastructure;
@@ -56,6 +57,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
+// Rate limiting, partitioned by client IP. Protects the unauthenticated, paid-provider
+// trial endpoints from abuse and slows credential stuffing / brute force on auth.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+
+    // Trial endpoints hit paid AI/TTS providers with no auth — keep them tight.
+    options.AddPolicy("trial", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1) }));
+});
+
 // CORS for the Next.js frontend. Frontend:Origin may be a comma-separated list
 // so the production domain plus Netlify preview/deploy URLs all pass CORS.
 const string CorsPolicy = "frontend";
@@ -83,6 +100,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors(CorsPolicy);
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

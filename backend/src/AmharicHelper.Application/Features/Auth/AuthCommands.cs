@@ -1,9 +1,11 @@
+using System.Security.Cryptography;
 using AmharicHelper.Application.Abstractions;
 using AmharicHelper.Application.Common;
 using AmharicHelper.Application.DTOs;
 using AmharicHelper.Domain.Entities;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace AmharicHelper.Application.Features.Auth;
 
@@ -89,13 +91,29 @@ public class RefreshHandler(
 // ---- Forgot / Reset password (stubbed: email delivery is a follow-up) ----
 public record ForgotPasswordCommand(ForgotPasswordRequest Request) : IRequest<Result<bool>>;
 
-public class ForgotPasswordHandler(IUserRepository users) : IRequestHandler<ForgotPasswordCommand, Result<bool>>
+public class ForgotPasswordHandler(
+    IUserRepository users,
+    IPasswordHasher hasher,
+    ILogger<ForgotPasswordHandler> logger) : IRequestHandler<ForgotPasswordCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(ForgotPasswordCommand cmd, CancellationToken ct)
     {
-        // MVP scaffold: always return success to avoid leaking which emails exist.
-        // TODO: generate a time-limited reset token and email it to the user.
-        _ = await users.GetByEmailAsync(cmd.Request.Email, ct);
+        var user = await users.GetByEmailAsync(cmd.Request.Email, ct);
+        if (user is not null)
+        {
+            // Single-use, time-limited token. Only its hash is stored, so a DB leak
+            // can't be turned into a password reset.
+            var rawToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+            user.PasswordResetTokenHash = hasher.Hash(rawToken);
+            user.PasswordResetExpiresAt = DateTime.UtcNow.AddHours(1);
+            await users.UpdateAsync(user, ct);
+
+            // TODO: email this token to the user as a reset link. Until email delivery is
+            // wired up it is logged so the flow can be exercised. Do NOT log it in production.
+            logger.LogInformation("Password reset token for {Email}: {Token}", user.Email, rawToken);
+        }
+
+        // Always report success so the endpoint can't be used to enumerate accounts.
         return Result<bool>.Ok(true);
     }
 }
@@ -107,10 +125,27 @@ public class ResetPasswordHandler(IUserRepository users, IPasswordHasher hasher)
 {
     public async Task<Result<bool>> Handle(ResetPasswordCommand cmd, CancellationToken ct)
     {
-        // TODO: validate the reset token before allowing the change.
-        var user = await users.GetByEmailAsync(cmd.Request.Email, ct);
-        if (user is null) return Result<bool>.Fail("Invalid reset request.");
-        user.PasswordHash = hasher.Hash(cmd.Request.NewPassword);
+        var req = cmd.Request;
+        if (string.IsNullOrWhiteSpace(req.NewPassword) || req.NewPassword.Length < 8)
+            return Result<bool>.Fail("Password must be at least 8 characters.");
+
+        var user = await users.GetByEmailAsync(req.Email, ct);
+
+        // Reject if there is no pending reset, it has expired, or the token doesn't match.
+        // One generic error so callers can't probe which condition failed.
+        if (user is null
+            || string.IsNullOrEmpty(user.PasswordResetTokenHash)
+            || user.PasswordResetExpiresAt is null
+            || user.PasswordResetExpiresAt < DateTime.UtcNow
+            || string.IsNullOrWhiteSpace(req.ResetToken)
+            || !hasher.Verify(req.ResetToken, user.PasswordResetTokenHash))
+        {
+            return Result<bool>.Fail("Invalid or expired reset request.");
+        }
+
+        user.PasswordHash = hasher.Hash(req.NewPassword);
+        user.PasswordResetTokenHash = null;   // consume the token (single use)
+        user.PasswordResetExpiresAt = null;
         await users.UpdateAsync(user, ct);
         return Result<bool>.Ok(true);
     }

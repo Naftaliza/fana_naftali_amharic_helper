@@ -3,6 +3,7 @@ using AmharicHelper.Application.Features.Trial;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AmharicHelper.Api.Controllers;
 
@@ -13,6 +14,7 @@ namespace AmharicHelper.Api.Controllers;
 [ApiController]
 [Route("api/trial")]
 [AllowAnonymous]
+[EnableRateLimiting("trial")]
 public class TrialController(IMediator mediator) : ControllerBase
 {
     /// <summary>Upload a document and get a generic analysis without signing in or saving anything.</summary>

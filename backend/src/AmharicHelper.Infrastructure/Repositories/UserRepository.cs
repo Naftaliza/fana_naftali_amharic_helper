@@ -38,7 +38,9 @@ public class UserRepository(ISqlConnectionFactory factory) : IUserRepository
             """
             UPDATE Users
             SET Email = @Email, PasswordHash = @PasswordHash, DisplayName = @DisplayName,
-                PreferredLanguage = @PreferredLanguage
+                PreferredLanguage = @PreferredLanguage,
+                PasswordResetTokenHash = @PasswordResetTokenHash,
+                PasswordResetExpiresAt = @PasswordResetExpiresAt
             WHERE Id = @Id
             """, user);
     }

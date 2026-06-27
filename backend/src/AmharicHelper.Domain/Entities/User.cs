@@ -11,4 +11,8 @@ public class User
     public string DisplayName { get; set; } = string.Empty;
     public Language PreferredLanguage { get; set; } = Language.Hebrew;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Single-use, time-limited password reset. Only the token hash is persisted.
+    public string? PasswordResetTokenHash { get; set; }
+    public DateTime? PasswordResetExpiresAt { get; set; }
 }

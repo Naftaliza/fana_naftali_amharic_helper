@@ -2,9 +2,11 @@ using AmharicHelper.Application.DTOs;
 using AmharicHelper.Application.Features.Auth;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AmharicHelper.Api.Controllers;
 
+[EnableRateLimiting("auth")]
 public class AuthController(IMediator mediator) : ApiControllerBase(mediator)
 {
     [HttpPost("register")]
