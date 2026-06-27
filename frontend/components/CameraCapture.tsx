@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Camera, X, SwitchCamera, RotateCcw, Check, ImageUp } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 
@@ -27,6 +28,10 @@ export function CameraCapture({
   const [preview, setPreview] = useState<{ url: string; file: File } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
+  // Render via a portal to document.body so the full-screen `fixed inset-0` resolves
+  // against the viewport, not a transformed ancestor (the upload page's animated wrapper).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((tr) => tr.stop());
@@ -112,7 +117,8 @@ export function CameraCapture({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -176,6 +182,7 @@ export function CameraCapture({
           )}
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
