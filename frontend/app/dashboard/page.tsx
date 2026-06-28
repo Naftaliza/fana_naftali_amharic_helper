@@ -57,7 +57,7 @@ export default function DashboardPage() {
       ) : (
         <div className="grid gap-3">
           {docs.map((d) => (
-            <Card key={d.id} className="transition-shadow hover:shadow-md">
+            <Card key={d.id} className="min-w-0 transition-shadow hover:shadow-md">
               <CardContent className="flex items-center gap-4 py-4">
                 <Link href={`/documents/${d.id}`} className="flex min-w-0 flex-1 items-center gap-4">
                   <FileText className="h-8 w-8 shrink-0 text-brand" />
