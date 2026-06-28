@@ -25,10 +25,10 @@ public class DocumentAnalysisRepository(ISqlConnectionFactory factory) : IDocume
         await conn.ExecuteAsync(
             """
             INSERT INTO DocumentAnalyses
-                (Id, DocumentId, Summary, DocumentType, UrgencyLevel, KeyPointsJson,
+                (Id, DocumentId, Summary, DocumentType, Category, UrgencyLevel, KeyPointsJson,
                  RequiredActionsJson, DeadlinesJson, ExplanationJson, CreatedAt)
             VALUES
-                (@Id, @DocumentId, @Summary, @DocumentType, @UrgencyLevel, @KeyPointsJson,
+                (@Id, @DocumentId, @Summary, @DocumentType, @Category, @UrgencyLevel, @KeyPointsJson,
                  @RequiredActionsJson, @DeadlinesJson, @ExplanationJson, @CreatedAt)
             """,
             new
@@ -37,6 +37,7 @@ public class DocumentAnalysisRepository(ISqlConnectionFactory factory) : IDocume
                 analysis.DocumentId,
                 Summary = JsonSerializer.Serialize(analysis.Summary),
                 DocumentType = JsonSerializer.Serialize(analysis.DocumentType),
+                Category = (int)analysis.Category,
                 UrgencyLevel = (int)analysis.UrgencyLevel,
                 KeyPointsJson = JsonSerializer.Serialize(analysis.KeyPoints),
                 RequiredActionsJson = JsonSerializer.Serialize(analysis.RequiredActions),
@@ -59,6 +60,7 @@ public class DocumentAnalysisRepository(ISqlConnectionFactory factory) : IDocume
         public Guid DocumentId { get; set; }
         public string Summary { get; set; } = "{}";
         public string DocumentType { get; set; } = "{}";
+        public int Category { get; set; }
         public int UrgencyLevel { get; set; }
         public string KeyPointsJson { get; set; } = "[]";
         public string RequiredActionsJson { get; set; } = "[]";
@@ -72,6 +74,7 @@ public class DocumentAnalysisRepository(ISqlConnectionFactory factory) : IDocume
             DocumentId = DocumentId,
             Summary = JsonSerializer.Deserialize<LocalizedText>(Summary) ?? new(),
             DocumentType = JsonSerializer.Deserialize<LocalizedText>(DocumentType) ?? new(),
+            Category = (DocumentCategory)Category,
             UrgencyLevel = (UrgencyLevel)UrgencyLevel,
             KeyPoints = JsonSerializer.Deserialize<List<LocalizedText>>(KeyPointsJson) ?? new(),
             RequiredActions = JsonSerializer.Deserialize<List<RequiredAction>>(RequiredActionsJson) ?? new(),

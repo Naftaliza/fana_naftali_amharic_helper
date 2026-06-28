@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   DocumentDetail,
   DocumentSummary,
+  Provider,
 } from "@/lib/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080";
@@ -148,6 +149,15 @@ export const api = {
     }
     return res.blob();
   },
+
+  // --- Sponsored referrals (no auth required — works for trial users too) ---
+  getReferrals: (category: number) =>
+    request<Provider[]>(`/api/referrals?category=${category}`),
+  logLead: (providerId: string, body: { category: number; urgency: number; documentId?: string }) =>
+    request<{ ok: boolean }>(`/api/referrals/${providerId}/lead`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   // --- Chat ---
   chatHistory: (id: string) => request<ChatMessage[]>(`/api/documents/${id}/chat`),

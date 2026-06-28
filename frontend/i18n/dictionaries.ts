@@ -85,6 +85,10 @@ const he: Dict = {
   "trial.tryAnother": "נסו מסמך נוסף",
   "trial.overTitle": "סיימתם את הניסיונות החינם",
   "trial.overBody": "הירשמו בחינם כדי להמשיך, לשמור את המסמכים שלכם ולשאול שאלות עליהם.",
+  "referral.title": "צריכים עזרה עם זה? דברו עם איש מקצוע מהימן דובר אמהרית",
+  "referral.disclosure": "אלו שותפים בתשלום. פאנא אינה ערבה לשירות או לתוצאה — בדקו בעצמכם.",
+  "referral.whatsapp": "וואטסאפ",
+  "referral.call": "התקשרו",
 };
 
 const am: Dict = {
@@ -169,6 +173,10 @@ const am: Dict = {
   "trial.tryAnother": "ሌላ ሰነድ ይሞክሩ",
   "trial.overTitle": "ነጻ ሙከራዎችዎ አልቀዋል",
   "trial.overBody": "ለመቀጠል፣ ሰነዶችዎን ለማስቀመጥ እና ጥያቄዎችን ለመጠየቅ በነጻ ይመዝገቡ።",
+  "referral.title": "በዚህ እርዳታ ይፈልጋሉ? አማርኛ ተናጋሪ ታማኝ ባለሙያ ያነጋግሩ",
+  "referral.disclosure": "እነዚህ የክፍያ አጋሮች ናቸው። ፋና አገልግሎቱን ወይም ውጤቱን አያረጋግጥም — እባክዎ ራስዎ ያረጋግጡ።",
+  "referral.whatsapp": "ዋትስአፕ",
+  "referral.call": "ይደውሉ",
 };
 
 const en: Dict = {
@@ -253,6 +261,10 @@ const en: Dict = {
   "trial.tryAnother": "Try another document",
   "trial.overTitle": "You've used your free tries",
   "trial.overBody": "Sign up for free to continue, save your documents, and ask questions about them.",
+  "referral.title": "Need help with this? Talk to a trusted Amharic-speaking expert",
+  "referral.disclosure": "These are paid partners. Fana doesn't guarantee their service or outcome — please verify for yourself.",
+  "referral.whatsapp": "WhatsApp",
+  "referral.call": "Call",
 };
 
 export const dictionaries: Record<Language, Dict> = { he, am, en };

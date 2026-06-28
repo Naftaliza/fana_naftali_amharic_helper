@@ -45,6 +45,19 @@ public interface ITtsAudioCacheRepository
     Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken ct = default);
 }
 
+/// <summary>Vetted professionals shown as sponsored referrals, matched by document category.</summary>
+public interface IProviderRepository
+{
+    Task<IReadOnlyList<Provider>> GetActiveByCategoryAsync(DocumentCategory category, int limit, CancellationToken ct = default);
+    Task<Provider?> GetByIdAsync(Guid id, CancellationToken ct = default);
+}
+
+/// <summary>Records each user→provider contact (the billable referral unit).</summary>
+public interface ILeadRepository
+{
+    Task AddAsync(Lead lead, CancellationToken ct = default);
+}
+
 public interface IChatMessageRepository
 {
     Task<IReadOnlyList<ChatMessage>> ListByDocumentAsync(Guid documentId, CancellationToken ct = default);
