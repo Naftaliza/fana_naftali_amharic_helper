@@ -31,7 +31,7 @@ public class LeadRepository(ISqlConnectionFactory factory) : ILeadRepository
         using var conn = factory.Create();
         var rows = await conn.QueryAsync<RecentLeadDto>(
             """
-            SELECT l.ProviderId, p.DisplayName, l.Category, l.Urgency, l.CreatedAt
+            SELECT l.ProviderId, p.DisplayName, l.Category, l.Urgency, l.Ref, l.CreatedAt
             FROM Leads l JOIN Providers p ON p.Id = l.ProviderId
             ORDER BY l.CreatedAt DESC
             LIMIT @limit
@@ -44,8 +44,8 @@ public class LeadRepository(ISqlConnectionFactory factory) : ILeadRepository
         using var conn = factory.Create();
         await conn.ExecuteAsync(
             """
-            INSERT INTO Leads (Id, ProviderId, Category, Urgency, DocumentId, CreatedAt)
-            VALUES (@Id, @ProviderId, @Category, @Urgency, @DocumentId, @CreatedAt)
+            INSERT INTO Leads (Id, ProviderId, Category, Urgency, DocumentId, Ref, CreatedAt)
+            VALUES (@Id, @ProviderId, @Category, @Urgency, @DocumentId, @Ref, @CreatedAt)
             """,
             new
             {
@@ -54,6 +54,7 @@ public class LeadRepository(ISqlConnectionFactory factory) : ILeadRepository
                 Category = (int)lead.Category,
                 Urgency = (int)lead.Urgency,
                 lead.DocumentId,
+                lead.Ref,
                 lead.CreatedAt
             });
     }

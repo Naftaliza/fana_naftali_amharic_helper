@@ -25,7 +25,7 @@ public class GetProvidersHandler(IProviderRepository providers)
 }
 
 /// <summary>Records a user→provider contact — the billable referral unit.</summary>
-public record LogLeadCommand(Guid ProviderId, DocumentCategory Category, UrgencyLevel Urgency, Guid? DocumentId)
+public record LogLeadCommand(Guid ProviderId, DocumentCategory Category, UrgencyLevel Urgency, Guid? DocumentId, string? Ref)
     : IRequest<Result<bool>>;
 
 public class LogLeadHandler(IProviderRepository providers, ILeadRepository leads)
@@ -41,7 +41,8 @@ public class LogLeadHandler(IProviderRepository providers, ILeadRepository leads
             ProviderId = cmd.ProviderId,
             Category = cmd.Category,
             Urgency = cmd.Urgency,
-            DocumentId = cmd.DocumentId
+            DocumentId = cmd.DocumentId,
+            Ref = cmd.Ref
         }, ct);
         return Result<bool>.Ok(true);
     }

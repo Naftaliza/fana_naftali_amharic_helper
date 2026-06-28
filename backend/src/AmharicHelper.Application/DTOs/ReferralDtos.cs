@@ -13,7 +13,7 @@ public record ProviderDto(
     LocalizedText Blurb);
 
 /// <summary>Body for logging a lead. All fields optional; category/urgency are int enum values.</summary>
-public record LogLeadRequest(int? Category, int? Urgency, Guid? DocumentId);
+public record LogLeadRequest(int? Category, int? Urgency, Guid? DocumentId, string? Ref);
 
 /// <summary>Public business self-registration. Category is the int DocumentCategory value.</summary>
 public record ProviderApplicationRequest(
@@ -57,7 +57,7 @@ public record LeadSummaryDto(
     decimal PricePerLead, decimal MonthAmount, decimal TotalAmount);
 
 /// <summary>A single logged lead (a user→provider contact).</summary>
-public record RecentLeadDto(Guid ProviderId, string DisplayName, int Category, int Urgency, DateTime CreatedAt);
+public record RecentLeadDto(Guid ProviderId, string DisplayName, int Category, int Urgency, string? Ref, DateTime CreatedAt);
 
 /// <summary>The admin leads view: per-provider counts plus the most recent leads.</summary>
 public record LeadsOverviewDto(IReadOnlyList<LeadSummaryDto> Summary, IReadOnlyList<RecentLeadDto> Recent);

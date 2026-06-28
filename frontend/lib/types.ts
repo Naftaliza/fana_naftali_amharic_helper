@@ -163,6 +163,7 @@ export interface RecentLead {
   displayName: string;
   category: number;
   urgency: number;
+  ref: string | null;
   createdAt: string;
 }
 export interface LeadsOverview {

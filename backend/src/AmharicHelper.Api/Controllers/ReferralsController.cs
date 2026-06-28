@@ -32,7 +32,7 @@ public class ReferralsController(IMediator mediator) : ControllerBase
     {
         var category = (DocumentCategory)(body?.Category ?? (int)DocumentCategory.Other);
         var urgency = (UrgencyLevel)(body?.Urgency ?? (int)UrgencyLevel.Low);
-        var result = await mediator.Send(new LogLeadCommand(providerId, category, urgency, body?.DocumentId));
+        var result = await mediator.Send(new LogLeadCommand(providerId, category, urgency, body?.DocumentId, body?.Ref));
         return result.Success ? Ok(new { ok = true }) : NotFound(new { error = result.Error });
     }
 }

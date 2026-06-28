@@ -48,10 +48,17 @@ export function ReferralBlock({
   if (providers.length === 0) return null;
 
   const contact = (p: Provider) => {
+    // Short ref code shared between the logged lead and the WhatsApp message, so the provider
+    // can quote it and it can be matched on the admin Leads tab.
+    const ref = (Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 4)).toUpperCase();
     // Log the lead (best-effort), then open the user's preferred channel.
-    api.logLead(p.id, { category: category!, urgency, documentId }).catch(() => {});
-    if (p.whatsApp) window.open(`https://wa.me/${p.whatsApp}`, "_blank", "noopener");
-    else if (p.phone) window.location.href = `tel:${p.phone}`;
+    api.logLead(p.id, { category: category!, urgency, documentId, ref }).catch(() => {});
+    if (p.whatsApp) {
+      const text = encodeURIComponent(t("referral.waMessage").replace("{ref}", ref));
+      window.open(`https://wa.me/${p.whatsApp}?text=${text}`, "_blank", "noopener");
+    } else if (p.phone) {
+      window.location.href = `tel:${p.phone}`;
+    }
   };
 
   return (

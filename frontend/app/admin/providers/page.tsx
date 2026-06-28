@@ -243,7 +243,10 @@ export default function AdminProvidersPage() {
             <ul className="divide-y divide-gray-100 dark:divide-gray-800">
               {data.recent.map((r, i) => (
                 <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                  <span className="font-medium">{r.displayName}</span>
+                  <span className="font-medium">
+                    {r.displayName}
+                    {r.ref && <span className="ms-2 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">#{r.ref}</span>}
+                  </span>
                   <span className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                     <CategoryBadge category={r.category} t={t} />
                     <span>{t(URGENCY_KEYS[r.urgency] ?? "urg.low")}</span>
