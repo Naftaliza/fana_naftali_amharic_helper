@@ -43,9 +43,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">{t("nav.dashboard")}</h1>
-        <Link href="/upload"><Button><Plus className="h-5 w-5" />{t("nav.upload")}</Button></Link>
+        <Link href="/upload"><Button className="whitespace-nowrap"><Plus className="h-5 w-5" />{t("nav.upload")}</Button></Link>
       </div>
 
       {fetching ? (
