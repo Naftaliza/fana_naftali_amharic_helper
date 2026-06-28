@@ -145,6 +145,7 @@ export interface ManagedProvider {
   blurb: LocalizedText;
   isActive: boolean;
   priority: number;
+  pricePerLead: number;
 }
 
 // Leads admin view.
@@ -153,6 +154,9 @@ export interface LeadSummary {
   displayName: string;
   monthCount: number;
   totalCount: number;
+  pricePerLead: number;
+  monthAmount: number;
+  totalAmount: number;
 }
 export interface RecentLead {
   providerId: string;
@@ -176,4 +180,5 @@ export interface UpdateProvider {
   contactEmail?: string;
   description: string;
   priority: number;
+  pricePerLead: number;
 }

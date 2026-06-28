@@ -38,9 +38,9 @@ public class ProviderRepository(ISqlConnectionFactory factory) : IProviderReposi
         await conn.ExecuteAsync(
             """
             INSERT INTO Providers
-                (Id, Category, DisplayName, Phone, WhatsApp, City, ContactEmail, Blurb, IsActive, Priority, CreatedAt)
+                (Id, Category, DisplayName, Phone, WhatsApp, City, ContactEmail, Blurb, IsActive, Priority, PricePerLead, CreatedAt)
             VALUES
-                (@Id, @Category, @DisplayName, @Phone, @WhatsApp, @City, @ContactEmail, @Blurb, @IsActive, @Priority, @CreatedAt)
+                (@Id, @Category, @DisplayName, @Phone, @WhatsApp, @City, @ContactEmail, @Blurb, @IsActive, @Priority, @PricePerLead, @CreatedAt)
             """,
             new
             {
@@ -54,6 +54,7 @@ public class ProviderRepository(ISqlConnectionFactory factory) : IProviderReposi
                 Blurb = JsonSerializer.Serialize(provider.Blurb),
                 provider.IsActive,
                 provider.Priority,
+                provider.PricePerLead,
                 provider.CreatedAt
             });
     }
@@ -92,7 +93,8 @@ public class ProviderRepository(ISqlConnectionFactory factory) : IProviderReposi
             """
             UPDATE Providers SET
                 Category = @Category, DisplayName = @DisplayName, Phone = @Phone, WhatsApp = @WhatsApp,
-                City = @City, ContactEmail = @ContactEmail, Blurb = @Blurb, Priority = @Priority
+                City = @City, ContactEmail = @ContactEmail, Blurb = @Blurb, Priority = @Priority,
+                PricePerLead = @PricePerLead
             WHERE Id = @Id
             """,
             new
@@ -105,7 +107,8 @@ public class ProviderRepository(ISqlConnectionFactory factory) : IProviderReposi
                 provider.City,
                 provider.ContactEmail,
                 Blurb = JsonSerializer.Serialize(provider.Blurb),
-                provider.Priority
+                provider.Priority,
+                provider.PricePerLead
             });
     }
 
@@ -128,6 +131,7 @@ public class ProviderRepository(ISqlConnectionFactory factory) : IProviderReposi
         public string Blurb { get; set; } = "{}";
         public bool IsActive { get; set; }
         public int Priority { get; set; }
+        public decimal PricePerLead { get; set; }
         public DateTime CreatedAt { get; set; }
 
         public Provider ToEntity() => new()
@@ -142,6 +146,7 @@ public class ProviderRepository(ISqlConnectionFactory factory) : IProviderReposi
             Blurb = JsonSerializer.Deserialize<LocalizedText>(Blurb) ?? new(),
             IsActive = IsActive,
             Priority = Priority,
+            PricePerLead = PricePerLead,
             CreatedAt = CreatedAt
         };
     }

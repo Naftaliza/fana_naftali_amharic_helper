@@ -15,9 +15,12 @@ public class LeadRepository(ISqlConnectionFactory factory) : ILeadRepository
             """
             SELECT p.Id AS ProviderId, p.DisplayName,
                    COUNT(*) FILTER (WHERE l.CreatedAt >= date_trunc('month', now()))::int AS MonthCount,
-                   COUNT(*)::int AS TotalCount
+                   COUNT(*)::int AS TotalCount,
+                   p.PricePerLead AS PricePerLead,
+                   (COUNT(*) FILTER (WHERE l.CreatedAt >= date_trunc('month', now())) * p.PricePerLead)::numeric AS MonthAmount,
+                   (COUNT(*) * p.PricePerLead)::numeric AS TotalAmount
             FROM Leads l JOIN Providers p ON p.Id = l.ProviderId
-            GROUP BY p.Id, p.DisplayName
+            GROUP BY p.Id, p.DisplayName, p.PricePerLead
             ORDER BY MonthCount DESC, TotalCount DESC
             """);
         return rows.ToList();

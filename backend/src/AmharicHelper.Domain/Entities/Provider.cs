@@ -27,6 +27,9 @@ public class Provider
     /// <summary>Higher shows first (ties broken by name) — lets you promote paying providers.</summary>
     public int Priority { get; set; }
 
+    /// <summary>What this provider pays per delivered lead, used for monthly invoicing.</summary>
+    public decimal PricePerLead { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
