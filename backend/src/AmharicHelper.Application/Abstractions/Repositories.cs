@@ -1,3 +1,4 @@
+using AmharicHelper.Application.DTOs;
 using AmharicHelper.Domain.Entities;
 using AmharicHelper.Domain.Enums;
 
@@ -74,6 +75,12 @@ public interface IProviderRepository
 public interface ILeadRepository
 {
     Task AddAsync(Lead lead, CancellationToken ct = default);
+
+    /// <summary>Per-provider lead counts (this month + all time), busiest first.</summary>
+    Task<IReadOnlyList<LeadSummaryDto>> GetSummaryAsync(CancellationToken ct = default);
+
+    /// <summary>The most recent leads, newest first.</summary>
+    Task<IReadOnlyList<RecentLeadDto>> GetRecentAsync(int limit, CancellationToken ct = default);
 }
 
 public interface IChatMessageRepository

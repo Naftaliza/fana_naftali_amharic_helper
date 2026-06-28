@@ -75,6 +75,25 @@ public class ListPendingProvidersHandler(
     }
 }
 
+// ---- Admin: leads overview ----
+public record GetLeadsOverviewQuery(Guid AdminUserId) : IRequest<Result<LeadsOverviewDto>>;
+
+public class GetLeadsOverviewHandler(
+    ILeadRepository leads,
+    IUserRepository users,
+    IConfiguration config) : IRequestHandler<GetLeadsOverviewQuery, Result<LeadsOverviewDto>>
+{
+    public async Task<Result<LeadsOverviewDto>> Handle(GetLeadsOverviewQuery q, CancellationToken ct)
+    {
+        if (!await ListPendingProvidersHandler.IsAdminAsync(users, config, q.AdminUserId, ct))
+            return Result<LeadsOverviewDto>.Fail("Forbidden");
+
+        var summary = await leads.GetSummaryAsync(ct);
+        var recent = await leads.GetRecentAsync(50, ct);
+        return Result<LeadsOverviewDto>.Ok(new LeadsOverviewDto(summary, recent));
+    }
+}
+
 // ---- Admin: manage live/reviewed providers ----
 public record ListManagedProvidersQuery(Guid AdminUserId) : IRequest<Result<IReadOnlyList<ManagedProviderDto>>>;
 

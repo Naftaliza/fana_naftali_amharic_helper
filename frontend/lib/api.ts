@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   DocumentDetail,
   DocumentSummary,
+  LeadsOverview,
   ManagedProvider,
   PendingProvider,
   Provider,
@@ -180,6 +181,7 @@ export const api = {
     request<{ ok: boolean }>(`/api/admin/providers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   adminSetActive: (id: string, value: boolean) =>
     request<{ ok: boolean }>(`/api/admin/providers/${id}/active?value=${value}`, { method: "POST" }),
+  adminLeads: () => request<LeadsOverview>("/api/admin/leads"),
 
   // --- Chat ---
   chatHistory: (id: string) => request<ChatMessage[]>(`/api/documents/${id}/chat`),

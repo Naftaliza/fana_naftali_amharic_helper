@@ -147,6 +147,25 @@ export interface ManagedProvider {
   priority: number;
 }
 
+// Leads admin view.
+export interface LeadSummary {
+  providerId: string;
+  displayName: string;
+  monthCount: number;
+  totalCount: number;
+}
+export interface RecentLead {
+  providerId: string;
+  displayName: string;
+  category: number;
+  urgency: number;
+  createdAt: string;
+}
+export interface LeadsOverview {
+  summary: LeadSummary[];
+  recent: RecentLead[];
+}
+
 // Admin edit payload (description fills all three blurb languages on the server).
 export interface UpdateProvider {
   displayName: string;

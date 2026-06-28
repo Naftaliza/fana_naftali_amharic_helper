@@ -50,6 +50,15 @@ public record ManagedProviderDto(
     bool IsActive,
     int Priority);
 
+/// <summary>Lead counts for one provider (this month + all time).</summary>
+public record LeadSummaryDto(Guid ProviderId, string DisplayName, int MonthCount, int TotalCount);
+
+/// <summary>A single logged lead (a user→provider contact).</summary>
+public record RecentLeadDto(Guid ProviderId, string DisplayName, int Category, int Urgency, DateTime CreatedAt);
+
+/// <summary>The admin leads view: per-provider counts plus the most recent leads.</summary>
+public record LeadsOverviewDto(IReadOnlyList<LeadSummaryDto> Summary, IReadOnlyList<RecentLeadDto> Recent);
+
 /// <summary>Admin edit of an existing provider. Description fills all three Blurb languages.</summary>
 public record UpdateProviderRequest(
     string DisplayName,
