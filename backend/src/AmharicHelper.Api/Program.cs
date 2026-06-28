@@ -71,6 +71,12 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("trial", ctx => RateLimitPartition.GetFixedWindowLimiter(
         partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1) }));
+
+    // Referral endpoints are anonymous and cheap (DB only) — looser, but still capped to
+    // deter directory scraping and lead-log spam.
+    options.AddPolicy("referrals", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1) }));
 });
 
 // CORS for the Next.js frontend. Frontend:Origin may be a comma-separated list

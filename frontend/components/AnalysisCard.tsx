@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { LANGUAGE_ENUM, isRtl, loc, type AnalysisResult, type UrgencyLevel } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ReferralBlock } from "@/components/ReferralBlock";
 
 const urgencyColor: Record<UrgencyLevel, string> = {
   Low: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
@@ -166,6 +167,10 @@ export function AnalysisCard({
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400" dir={dir}>{t("doc.type")}: {loc(analysis.documentType, language)}</p>
         </CardContent>
       </Card>
+
+      {/* Sponsored referrals — placed high (right under the summary) so users see the offer
+          to get help while the document's urgency is fresh. Renders nothing when none match. */}
+      <ReferralBlock analysis={analysis} documentId={documentId} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

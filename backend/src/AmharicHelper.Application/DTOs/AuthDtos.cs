@@ -10,4 +10,4 @@ public record ResetPasswordRequest(string Email, string ResetToken, string NewPa
 
 public record AuthResponse(string AccessToken, string RefreshToken, UserDto User);
 
-public record UserDto(Guid Id, string Email, string DisplayName, Language PreferredLanguage);
+public record UserDto(Guid Id, string Email, string DisplayName, Language PreferredLanguage, bool IsAdmin = false);

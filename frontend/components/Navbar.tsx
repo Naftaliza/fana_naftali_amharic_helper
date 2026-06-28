@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe } from "lucide-react";
+import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useTheme } from "@/lib/theme-context";
@@ -159,6 +159,18 @@ export function Navbar() {
                       <UserPlus className="h-5 w-5 text-brand" />{t("nav.register")}
                     </Link>
                   </>
+                )}
+
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+
+                {/* For businesses — public referral signup */}
+                <Link href="/partners" className={itemClass}>
+                  <Briefcase className="h-5 w-5 text-brand" />{t("nav.partners")}
+                </Link>
+                {user?.isAdmin && (
+                  <Link href="/admin/providers" className={itemClass}>
+                    <ShieldCheck className="h-5 w-5 text-brand" />{t("nav.providerReview")}
+                  </Link>
                 )}
 
                 <div className="my-1 border-t border-gray-100 dark:border-gray-800" />

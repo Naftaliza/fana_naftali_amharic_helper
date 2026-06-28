@@ -43,6 +43,7 @@ public class GetDocumentHandler(
         {
             Summary = analysis.Summary,
             DocumentType = analysis.DocumentType,
+            Category = analysis.Category,
             UrgencyLevel = analysis.UrgencyLevel,
             KeyPoints = analysis.KeyPoints.ToList(),
             RequiredActions = analysis.RequiredActions

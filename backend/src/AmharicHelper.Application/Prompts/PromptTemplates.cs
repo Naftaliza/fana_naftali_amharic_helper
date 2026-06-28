@@ -36,6 +36,7 @@ public static class PromptTemplates
         {
           "summary": { "he": "", "am": "", "en": "" },
           "documentType": { "he": "", "am": "", "en": "" },
+          "category": "Government|Bank|Insurance|Employment|Healthcare|Municipality|Other",
           "urgencyLevel": "Low|Medium|High|Critical",
           "keyPoints": [{ "he": "", "am": "", "en": "" }],
           "requiredActions": [{ "description": { "he": "", "am": "", "en": "" }, "isMandatory": true }],
@@ -43,6 +44,9 @@ public static class PromptTemplates
           "explanation": { "he": "", "am": "", "en": "" }
         }
         - "summary": a short one or two sentence overview.
+        - "category": which institution sent it — pick the single best fit from the list
+          (Government covers ministries / National Insurance-Bituach Leumi; Municipality covers
+          arnona and local services). Use "Other" only if none clearly applies.
         - "explanation": a longer, clear plain-language walkthrough of the document.
         """;
 

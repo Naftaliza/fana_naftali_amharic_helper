@@ -45,6 +45,37 @@ public interface ITtsAudioCacheRepository
     Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken ct = default);
 }
 
+/// <summary>Vetted professionals shown as sponsored referrals, matched by document category.</summary>
+public interface IProviderRepository
+{
+    Task<IReadOnlyList<Provider>> GetActiveByCategoryAsync(DocumentCategory category, int limit, CancellationToken ct = default);
+    Task<Provider?> GetByIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Stores a new (pending, inactive) provider application.</summary>
+    Task AddAsync(Provider provider, CancellationToken ct = default);
+
+    /// <summary>Never-reviewed applications awaiting a first decision, newest first.</summary>
+    Task<IReadOnlyList<Provider>> GetPendingAsync(CancellationToken ct = default);
+
+    /// <summary>Providers an admin has acted on (live + deactivated), live first.</summary>
+    Task<IReadOnlyList<Provider>> GetManagedAsync(CancellationToken ct = default);
+
+    /// <summary>Approve/activate (true) or deactivate (false) a provider; stamps ReviewedAt.</summary>
+    Task SetActiveAsync(Guid id, bool active, CancellationToken ct = default);
+
+    /// <summary>Update a provider's editable fields (not its active/review state).</summary>
+    Task UpdateAsync(Provider provider, CancellationToken ct = default);
+
+    /// <summary>Remove a provider (e.g. rejecting an application).</summary>
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
+}
+
+/// <summary>Records each user→provider contact (the billable referral unit).</summary>
+public interface ILeadRepository
+{
+    Task AddAsync(Lead lead, CancellationToken ct = default);
+}
+
 public interface IChatMessageRepository
 {
     Task<IReadOnlyList<ChatMessage>> ListByDocumentAsync(Guid documentId, CancellationToken ct = default);

@@ -11,6 +11,8 @@ public class DocumentAnalysisResult
 {
     public LocalizedText Summary { get; set; } = new();
     public LocalizedText DocumentType { get; set; } = new();
+    /// <summary>AI-classified institution category, used to match sponsored referrals.</summary>
+    public DocumentCategory Category { get; set; } = DocumentCategory.Other;
     public UrgencyLevel UrgencyLevel { get; set; } = UrgencyLevel.Low;
     public List<LocalizedText> KeyPoints { get; set; } = new();
     public List<RequiredActionDto> RequiredActions { get; set; } = new();

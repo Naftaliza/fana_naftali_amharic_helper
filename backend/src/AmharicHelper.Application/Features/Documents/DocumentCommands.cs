@@ -100,6 +100,7 @@ public class AnalyzeDocumentHandler(
             DocumentId = doc.Id,
             Summary = result.Summary,
             DocumentType = result.DocumentType,
+            Category = result.Category,
             UrgencyLevel = result.UrgencyLevel,
             KeyPoints = result.KeyPoints,
             RequiredActions = result.RequiredActions

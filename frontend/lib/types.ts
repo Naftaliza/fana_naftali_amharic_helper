@@ -40,9 +40,36 @@ export function loc(text: LocalizedText | undefined, language: Language): string
   return "";
 }
 
+// Document institution categories, mirroring the backend DocumentCategory enum (sent as ints).
+export const DOCUMENT_CATEGORY = {
+  Government: 0,
+  Bank: 1,
+  Insurance: 2,
+  Employment: 3,
+  Healthcare: 4,
+  Municipality: 5,
+  Other: 6,
+} as const;
+
+// Urgency string → backend enum int (the wire uses ints, like ChatMessage.role).
+export const URGENCY_ENUM: Record<UrgencyLevel, number> = { Low: 0, Medium: 1, High: 2, Critical: 3 };
+
+// A vetted professional shown as a sponsored referral.
+export interface Provider {
+  id: string;
+  category: number;
+  displayName: string;
+  phone: string | null;
+  whatsApp: string | null;
+  city: string | null;
+  blurb: LocalizedText;
+}
+
 export interface AnalysisResult {
   summary: LocalizedText;
   documentType: LocalizedText;
+  // AI-classified institution category (DocumentCategory int) used to match referrals.
+  category?: number;
   urgencyLevel: UrgencyLevel;
   keyPoints: LocalizedText[];
   requiredActions: { description: LocalizedText; isMandatory: boolean }[];
@@ -79,4 +106,55 @@ export interface AuthUser {
   email: string;
   displayName: string;
   preferredLanguage: number;
+  isAdmin?: boolean;
+}
+
+// Business self-registration payload (category is a DOCUMENT_CATEGORY int).
+export interface ProviderApplication {
+  displayName: string;
+  category: number;
+  city?: string;
+  phone?: string;
+  whatsApp?: string;
+  contactEmail: string;
+  description: string;
+}
+
+// A pending application shown on the admin review page.
+export interface PendingProvider {
+  id: string;
+  category: number;
+  displayName: string;
+  city: string | null;
+  phone: string | null;
+  whatsApp: string | null;
+  contactEmail: string | null;
+  blurb: LocalizedText;
+  createdAt: string;
+}
+
+// A reviewed provider (live or deactivated) shown on the manage tab.
+export interface ManagedProvider {
+  id: string;
+  category: number;
+  displayName: string;
+  city: string | null;
+  phone: string | null;
+  whatsApp: string | null;
+  contactEmail: string | null;
+  blurb: LocalizedText;
+  isActive: boolean;
+  priority: number;
+}
+
+// Admin edit payload (description fills all three blurb languages on the server).
+export interface UpdateProvider {
+  displayName: string;
+  category: number;
+  city?: string;
+  phone?: string;
+  whatsApp?: string;
+  contactEmail?: string;
+  description: string;
+  priority: number;
 }

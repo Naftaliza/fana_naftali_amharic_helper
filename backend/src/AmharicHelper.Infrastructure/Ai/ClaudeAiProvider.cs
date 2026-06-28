@@ -73,6 +73,7 @@ public class ClaudeAiProvider(
         {
             summary = LocalizedSchema(),
             documentType = LocalizedSchema(),
+            category = new { type = "string", @enum = new[] { "Government", "Bank", "Insurance", "Employment", "Healthcare", "Municipality", "Other" } },
             urgencyLevel = new { type = "string", @enum = new[] { "Low", "Medium", "High", "Critical" } },
             keyPoints = new { type = "array", items = LocalizedSchema() },
             requiredActions = new
@@ -107,7 +108,7 @@ public class ClaudeAiProvider(
         },
         required = new[]
         {
-            "summary", "documentType", "urgencyLevel", "keyPoints",
+            "summary", "documentType", "category", "urgencyLevel", "keyPoints",
             "requiredActions", "deadlines", "explanation"
         }
     };

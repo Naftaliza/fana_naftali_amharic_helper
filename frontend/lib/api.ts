@@ -6,6 +6,11 @@ import type {
   ChatMessage,
   DocumentDetail,
   DocumentSummary,
+  ManagedProvider,
+  PendingProvider,
+  Provider,
+  ProviderApplication,
+  UpdateProvider,
 } from "@/lib/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080";
@@ -148,6 +153,33 @@ export const api = {
     }
     return res.blob();
   },
+
+  // --- Sponsored referrals (no auth required — works for trial users too) ---
+  getReferrals: (category: number) =>
+    request<Provider[]>(`/api/referrals?category=${category}`),
+  logLead: (providerId: string, body: { category: number; urgency: number; documentId?: string }) =>
+    request<{ ok: boolean }>(`/api/referrals/${providerId}/lead`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // --- Business self-registration (public) ---
+  applyAsProvider: (body: ProviderApplication) =>
+    request<{ ok: boolean }>("/api/partners/apply", { method: "POST", body: JSON.stringify(body) }),
+
+  // --- Admin: provider review (requires admin account) ---
+  adminListPending: () => request<PendingProvider[]>("/api/admin/providers/pending"),
+  adminApprove: (id: string) =>
+    request<{ ok: boolean }>(`/api/admin/providers/${id}/approve`, { method: "POST" }),
+  adminReject: (id: string) =>
+    request<void>(`/api/admin/providers/${id}`, { method: "DELETE" }),
+
+  // --- Admin: manage live/reviewed providers ---
+  adminListProviders: () => request<ManagedProvider[]>("/api/admin/providers"),
+  adminUpdateProvider: (id: string, body: UpdateProvider) =>
+    request<{ ok: boolean }>(`/api/admin/providers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  adminSetActive: (id: string, value: boolean) =>
+    request<{ ok: boolean }>(`/api/admin/providers/${id}/active?value=${value}`, { method: "POST" }),
 
   // --- Chat ---
   chatHistory: (id: string) => request<ChatMessage[]>(`/api/documents/${id}/chat`),
