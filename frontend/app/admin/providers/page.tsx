@@ -6,7 +6,7 @@ import { Check, Trash2, Mail, Phone, MessageCircle, MapPin, Pencil, X, Eye, EyeO
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
-import { loc, type ManagedProvider, type PendingProvider } from "@/lib/types";
+import { loc, type LeadsOverview, type ManagedProvider, type PendingProvider } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +15,8 @@ const CATEGORY_KEYS = [
   "cat.government", "cat.bank", "cat.insurance", "cat.employment",
   "cat.healthcare", "cat.municipality", "cat.other",
 ];
+
+const URGENCY_KEYS = ["urg.low", "urg.medium", "urg.high", "urg.critical"];
 
 const inputCls =
   "h-11 w-full rounded-xl border border-gray-300 bg-white px-4 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100";
@@ -42,7 +44,7 @@ export default function AdminProvidersPage() {
   const { t, language, rtl } = useLanguage();
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<"pending" | "live">("pending");
+  const [tab, setTab] = useState<"pending" | "live" | "leads">("pending");
 
   // Guard: only admins.
   useEffect(() => {
@@ -54,7 +56,7 @@ export default function AdminProvidersPage() {
     return <p className="pt-16 text-center text-gray-500">{t("common.loading")}</p>;
   }
 
-  const tabBtn = (key: "pending" | "live", label: string) => (
+  const tabBtn = (key: "pending" | "live" | "leads", label: string) => (
     <button
       onClick={() => setTab(key)}
       className={`rounded-full px-4 py-2 text-sm font-medium ${
@@ -67,11 +69,12 @@ export default function AdminProvidersPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 pt-6" dir={rtl ? "rtl" : "ltr"}>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {tabBtn("pending", t("admin.tabPending"))}
         {tabBtn("live", t("admin.tabLive"))}
+        {tabBtn("leads", t("admin.tabLeads"))}
       </div>
-      {tab === "pending" ? <PendingTab /> : <ManageTab />}
+      {tab === "pending" ? <PendingTab /> : tab === "live" ? <ManageTab /> : <LeadsTab />}
     </div>
   );
 
@@ -188,6 +191,65 @@ export default function AdminProvidersPage() {
           )
         )}
       </ul>
+    );
+  }
+
+  // ---- Leads tab ----
+  function LeadsTab() {
+    const [data, setData] = useState<LeadsOverview | null>(null);
+    useEffect(() => { api.adminLeads().then(setData).catch(() => setData({ summary: [], recent: [] })); }, []);
+
+    if (data === null) return <p className="text-gray-500">{t("common.loading")}</p>;
+    if (data.summary.length === 0) return <p className="text-gray-500 dark:text-gray-400">{t("leads.none")}</p>;
+
+    return (
+      <div className="space-y-6">
+        {/* Per-provider counts — the invoice numbers. */}
+        <Card>
+          <CardContent className="py-4">
+            <h2 className="mb-3 font-semibold">{t("leads.byProvider")}</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-start text-gray-500 dark:text-gray-400">
+                    <th className="py-1 text-start font-medium">{t("leads.provider")}</th>
+                    <th className="py-1 text-end font-medium">{t("leads.thisMonth")}</th>
+                    <th className="py-1 text-end font-medium">{t("leads.total")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.summary.map((s) => (
+                    <tr key={s.providerId} className="border-t border-gray-100 dark:border-gray-800">
+                      <td className="py-2">{s.displayName}</td>
+                      <td className="py-2 text-end font-semibold text-brand">{s.monthCount}</td>
+                      <td className="py-2 text-end">{s.totalCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent individual leads. */}
+        <Card>
+          <CardContent className="py-4">
+            <h2 className="mb-3 font-semibold">{t("leads.recent")}</h2>
+            <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+              {data.recent.map((r, i) => (
+                <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <span className="font-medium">{r.displayName}</span>
+                  <span className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                    <CategoryBadge category={r.category} t={t} />
+                    <span>{t(URGENCY_KEYS[r.urgency] ?? "urg.low")}</span>
+                    <span>{new Date(r.createdAt).toLocaleString()}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 

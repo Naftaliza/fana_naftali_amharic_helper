@@ -134,6 +134,17 @@ const he: Dict = {
   "admin.deactivate": "הסתרה",
   "admin.hidden": "מוסתר",
   "admin.priority": "עדיפות (גבוה = מוצג ראשון)",
+  "admin.tabLeads": "פניות",
+  "leads.none": "עדיין אין פניות.",
+  "leads.byProvider": "פניות לפי נותן שירות",
+  "leads.provider": "נותן שירות",
+  "leads.thisMonth": "החודש",
+  "leads.total": "סה\"כ",
+  "leads.recent": "פניות אחרונות",
+  "urg.low": "נמוכה",
+  "urg.medium": "בינונית",
+  "urg.high": "גבוהה",
+  "urg.critical": "קריטית",
 };
 
 const am: Dict = {
@@ -267,6 +278,17 @@ const am: Dict = {
   "admin.deactivate": "ደብቅ",
   "admin.hidden": "ተደብቋል",
   "admin.priority": "ቅድሚያ (ከፍተኛ = መጀመሪያ ይታያል)",
+  "admin.tabLeads": "ጥያቄዎች",
+  "leads.none": "እስካሁን ጥያቄ የለም።",
+  "leads.byProvider": "በአገልግሎት ሰጪ ጥያቄዎች",
+  "leads.provider": "አገልግሎት ሰጪ",
+  "leads.thisMonth": "በዚህ ወር",
+  "leads.total": "ጠቅላላ",
+  "leads.recent": "የቅርብ ጊዜ ጥያቄዎች",
+  "urg.low": "ዝቅተኛ",
+  "urg.medium": "መካከለኛ",
+  "urg.high": "ከፍተኛ",
+  "urg.critical": "አስቸኳይ",
 };
 
 const en: Dict = {
@@ -400,6 +422,17 @@ const en: Dict = {
   "admin.deactivate": "Hide",
   "admin.hidden": "hidden",
   "admin.priority": "Priority (higher shows first)",
+  "admin.tabLeads": "Leads",
+  "leads.none": "No leads yet.",
+  "leads.byProvider": "Leads by provider",
+  "leads.provider": "Provider",
+  "leads.thisMonth": "This month",
+  "leads.total": "Total",
+  "leads.recent": "Recent leads",
+  "urg.low": "Low",
+  "urg.medium": "Medium",
+  "urg.high": "High",
+  "urg.critical": "Critical",
 };
 
 export const dictionaries: Record<Language, Dict> = { he, am, en };
