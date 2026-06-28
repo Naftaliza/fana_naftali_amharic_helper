@@ -48,10 +48,13 @@ public record ManagedProviderDto(
     string? ContactEmail,
     LocalizedText Blurb,
     bool IsActive,
-    int Priority);
+    int Priority,
+    decimal PricePerLead);
 
-/// <summary>Lead counts for one provider (this month + all time).</summary>
-public record LeadSummaryDto(Guid ProviderId, string DisplayName, int MonthCount, int TotalCount);
+/// <summary>Lead counts and invoice amounts for one provider (this month + all time).</summary>
+public record LeadSummaryDto(
+    Guid ProviderId, string DisplayName, int MonthCount, int TotalCount,
+    decimal PricePerLead, decimal MonthAmount, decimal TotalAmount);
 
 /// <summary>A single logged lead (a user→provider contact).</summary>
 public record RecentLeadDto(Guid ProviderId, string DisplayName, int Category, int Urgency, DateTime CreatedAt);
@@ -68,4 +71,5 @@ public record UpdateProviderRequest(
     string? WhatsApp,
     string? ContactEmail,
     string Description,
-    int Priority);
+    int Priority,
+    decimal PricePerLead);

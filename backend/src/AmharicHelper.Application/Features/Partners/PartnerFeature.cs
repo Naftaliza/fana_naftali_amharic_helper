@@ -110,7 +110,7 @@ public class ListManagedProvidersHandler(
         var managed = await providers.GetManagedAsync(ct);
         var dtos = (IReadOnlyList<ManagedProviderDto>)managed
             .Select(p => new ManagedProviderDto(
-                p.Id, (int)p.Category, p.DisplayName, p.City, p.Phone, p.WhatsApp, p.ContactEmail, p.Blurb, p.IsActive, p.Priority))
+                p.Id, (int)p.Category, p.DisplayName, p.City, p.Phone, p.WhatsApp, p.ContactEmail, p.Blurb, p.IsActive, p.Priority, p.PricePerLead))
             .ToList();
         return Result<IReadOnlyList<ManagedProviderDto>>.Ok(dtos);
     }
@@ -141,6 +141,7 @@ public class UpdateProviderHandler(
         provider.ContactEmail = r.ContactEmail?.Trim();
         provider.Blurb = new LocalizedText(r.Description, r.Description, r.Description);
         provider.Priority = r.Priority;
+        provider.PricePerLead = r.PricePerLead;
 
         await providers.UpdateAsync(provider, ct);
         return Result<bool>.Ok(true);

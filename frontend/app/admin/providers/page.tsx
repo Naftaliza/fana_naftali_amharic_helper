@@ -214,14 +214,19 @@ export default function AdminProvidersPage() {
                   <tr className="text-start text-gray-500 dark:text-gray-400">
                     <th className="py-1 text-start font-medium">{t("leads.provider")}</th>
                     <th className="py-1 text-end font-medium">{t("leads.thisMonth")}</th>
+                    <th className="py-1 text-end font-medium">{t("leads.invoiceMonth")}</th>
                     <th className="py-1 text-end font-medium">{t("leads.total")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.summary.map((s) => (
                     <tr key={s.providerId} className="border-t border-gray-100 dark:border-gray-800">
-                      <td className="py-2">{s.displayName}</td>
+                      <td className="py-2">
+                        {s.displayName}
+                        <span className="ms-2 text-xs text-gray-400">₪{s.pricePerLead}/{t("leads.perLead")}</span>
+                      </td>
                       <td className="py-2 text-end font-semibold text-brand">{s.monthCount}</td>
+                      <td className="py-2 text-end font-semibold">₪{s.monthAmount}</td>
                       <td className="py-2 text-end">{s.totalCount}</td>
                     </tr>
                   ))}
@@ -264,13 +269,14 @@ export default function AdminProvidersPage() {
       contactEmail: provider.contactEmail ?? "",
       description: loc(provider.blurb, language),
       priority: provider.priority,
+      pricePerLead: provider.pricePerLead,
     });
     const [busy, setBusy] = useState(false);
     const set = (k: keyof typeof form, v: string | number) => setForm((f) => ({ ...f, [k]: v }));
 
     const save = async () => {
       setBusy(true);
-      try { await api.adminUpdateProvider(provider.id, { ...form, category: Number(form.category), priority: Number(form.priority) }); onSaved(); }
+      try { await api.adminUpdateProvider(provider.id, { ...form, category: Number(form.category), priority: Number(form.priority), pricePerLead: Number(form.pricePerLead) }); onSaved(); }
       finally { setBusy(false); }
     };
 
@@ -289,7 +295,10 @@ export default function AdminProvidersPage() {
             <Input aria-label={t("partners.phone")} placeholder={t("partners.phone")} value={form.phone} onChange={(e) => set("phone", e.target.value)} />
             <Input aria-label={t("partners.whatsapp")} placeholder={t("partners.whatsapp")} value={form.whatsApp} onChange={(e) => set("whatsApp", e.target.value)} />
           </div>
-          <Input type="number" aria-label={t("admin.priority")} placeholder={t("admin.priority")} value={form.priority} onChange={(e) => set("priority", e.target.value)} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input type="number" aria-label={t("admin.priority")} placeholder={t("admin.priority")} value={form.priority} onChange={(e) => set("priority", e.target.value)} />
+            <Input type="number" step="0.5" min="0" aria-label={t("admin.pricePerLead")} placeholder={t("admin.pricePerLead")} value={form.pricePerLead} onChange={(e) => set("pricePerLead", e.target.value)} />
+          </div>
           <div className="flex gap-2">
             <Button onClick={save} disabled={busy} className="flex-1">{busy ? t("common.loading") : t("admin.save")}</Button>
             <button onClick={onCancel} className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-4 text-sm font-medium hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
