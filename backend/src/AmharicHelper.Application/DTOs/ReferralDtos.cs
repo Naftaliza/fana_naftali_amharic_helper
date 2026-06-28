@@ -36,3 +36,27 @@ public record PendingProviderDto(
     string? ContactEmail,
     LocalizedText Blurb,
     DateTime CreatedAt);
+
+/// <summary>A reviewed provider shown on the manage tab (live or deactivated).</summary>
+public record ManagedProviderDto(
+    Guid Id,
+    int Category,
+    string DisplayName,
+    string? City,
+    string? Phone,
+    string? WhatsApp,
+    string? ContactEmail,
+    LocalizedText Blurb,
+    bool IsActive,
+    int Priority);
+
+/// <summary>Admin edit of an existing provider. Description fills all three Blurb languages.</summary>
+public record UpdateProviderRequest(
+    string DisplayName,
+    int Category,
+    string? City,
+    string? Phone,
+    string? WhatsApp,
+    string? ContactEmail,
+    string Description,
+    int Priority);

@@ -123,6 +123,17 @@ const he: Dict = {
   "admin.empty": "אין בקשות ממתינות.",
   "admin.approve": "אישור",
   "admin.reject": "דחייה",
+  "admin.tabPending": "ממתינים לאישור",
+  "admin.tabLive": "נותני שירות פעילים",
+  "admin.noneLive": "אין עדיין נותני שירות מאושרים.",
+  "admin.edit": "עריכה",
+  "admin.save": "שמירה",
+  "admin.cancel": "ביטול",
+  "admin.delete": "מחיקה",
+  "admin.activate": "הצגה",
+  "admin.deactivate": "הסתרה",
+  "admin.hidden": "מוסתר",
+  "admin.priority": "עדיפות (גבוה = מוצג ראשון)",
 };
 
 const am: Dict = {
@@ -245,6 +256,17 @@ const am: Dict = {
   "admin.empty": "የሚጠብቅ ማመልከቻ የለም።",
   "admin.approve": "አጽድቅ",
   "admin.reject": "አትቀበል",
+  "admin.tabPending": "ማረጋገጫ የሚጠብቁ",
+  "admin.tabLive": "ንቁ አገልግሎት ሰጪዎች",
+  "admin.noneLive": "እስካሁን የጸደቀ አገልግሎት ሰጪ የለም።",
+  "admin.edit": "አስተካክል",
+  "admin.save": "አስቀምጥ",
+  "admin.cancel": "ይቅር",
+  "admin.delete": "ሰርዝ",
+  "admin.activate": "አሳይ",
+  "admin.deactivate": "ደብቅ",
+  "admin.hidden": "ተደብቋል",
+  "admin.priority": "ቅድሚያ (ከፍተኛ = መጀመሪያ ይታያል)",
 };
 
 const en: Dict = {
@@ -367,6 +389,17 @@ const en: Dict = {
   "admin.empty": "No pending applications.",
   "admin.approve": "Approve",
   "admin.reject": "Reject",
+  "admin.tabPending": "Pending review",
+  "admin.tabLive": "Live providers",
+  "admin.noneLive": "No approved providers yet.",
+  "admin.edit": "Edit",
+  "admin.save": "Save",
+  "admin.cancel": "Cancel",
+  "admin.delete": "Delete",
+  "admin.activate": "Show",
+  "admin.deactivate": "Hide",
+  "admin.hidden": "hidden",
+  "admin.priority": "Priority (higher shows first)",
 };
 
 export const dictionaries: Record<Language, Dict> = { he, am, en };

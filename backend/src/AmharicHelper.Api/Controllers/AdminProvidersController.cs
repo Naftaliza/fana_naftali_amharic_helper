@@ -1,3 +1,4 @@
+using AmharicHelper.Application.DTOs;
 using AmharicHelper.Application.Features.Partners;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -18,6 +19,30 @@ public class AdminProvidersController(IMediator mediator) : ApiControllerBase(me
     {
         var result = await Mediator.Send(new ListPendingProvidersQuery(CurrentUserId));
         return result.Success ? Ok(result.Value) : StatusCode(403, new { error = result.Error });
+    }
+
+    /// <summary>Reviewed providers (live + deactivated) for the manage tab.</summary>
+    [HttpGet]
+    public async Task<IActionResult> Managed()
+    {
+        var result = await Mediator.Send(new ListManagedProvidersQuery(CurrentUserId));
+        return result.Success ? Ok(result.Value) : StatusCode(403, new { error = result.Error });
+    }
+
+    /// <summary>Edit a provider's details.</summary>
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProviderRequest request)
+    {
+        var result = await Mediator.Send(new UpdateProviderCommand(CurrentUserId, id, request));
+        return result.Success ? Ok(new { ok = true }) : StatusCode(403, new { error = result.Error });
+    }
+
+    /// <summary>Activate or deactivate a provider (show/hide from users).</summary>
+    [HttpPost("{id:guid}/active")]
+    public async Task<IActionResult> SetActive(Guid id, [FromQuery] bool value)
+    {
+        var result = await Mediator.Send(new SetProviderActiveCommand(CurrentUserId, id, value));
+        return result.Success ? Ok(new { ok = true }) : StatusCode(403, new { error = result.Error });
     }
 
     [HttpPost("{id:guid}/approve")]

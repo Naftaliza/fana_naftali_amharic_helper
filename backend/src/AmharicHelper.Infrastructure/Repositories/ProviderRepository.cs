@@ -61,16 +61,52 @@ public class ProviderRepository(ISqlConnectionFactory factory) : IProviderReposi
     public async Task<IReadOnlyList<Provider>> GetPendingAsync(CancellationToken ct = default)
     {
         using var conn = factory.Create();
+        // Only never-reviewed applications — deactivated providers stay out of this queue.
         var rows = await conn.QueryAsync<ProviderRow>(
-            "SELECT * FROM Providers WHERE IsActive = FALSE ORDER BY CreatedAt DESC");
+            "SELECT * FROM Providers WHERE IsActive = FALSE AND ReviewedAt IS NULL ORDER BY CreatedAt DESC");
+        return rows.Select(r => r.ToEntity()).ToList();
+    }
+
+    public async Task<IReadOnlyList<Provider>> GetManagedAsync(CancellationToken ct = default)
+    {
+        using var conn = factory.Create();
+        // Everything an admin has acted on (live + deactivated), live first.
+        var rows = await conn.QueryAsync<ProviderRow>(
+            "SELECT * FROM Providers WHERE ReviewedAt IS NOT NULL ORDER BY IsActive DESC, Category, Priority DESC, DisplayName");
         return rows.Select(r => r.ToEntity()).ToList();
     }
 
     public async Task SetActiveAsync(Guid id, bool active, CancellationToken ct = default)
     {
         using var conn = factory.Create();
+        // Stamp ReviewedAt the first time (approve or deactivate) so it's never seen as "pending" again.
         await conn.ExecuteAsync(
-            "UPDATE Providers SET IsActive = @active WHERE Id = @id", new { id, active });
+            "UPDATE Providers SET IsActive = @active, ReviewedAt = COALESCE(ReviewedAt, now()) WHERE Id = @id",
+            new { id, active });
+    }
+
+    public async Task UpdateAsync(Provider provider, CancellationToken ct = default)
+    {
+        using var conn = factory.Create();
+        await conn.ExecuteAsync(
+            """
+            UPDATE Providers SET
+                Category = @Category, DisplayName = @DisplayName, Phone = @Phone, WhatsApp = @WhatsApp,
+                City = @City, ContactEmail = @ContactEmail, Blurb = @Blurb, Priority = @Priority
+            WHERE Id = @Id
+            """,
+            new
+            {
+                provider.Id,
+                Category = (int)provider.Category,
+                provider.DisplayName,
+                provider.Phone,
+                provider.WhatsApp,
+                provider.City,
+                provider.ContactEmail,
+                Blurb = JsonSerializer.Serialize(provider.Blurb),
+                provider.Priority
+            });
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)

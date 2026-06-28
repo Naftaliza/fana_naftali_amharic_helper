@@ -54,11 +54,17 @@ public interface IProviderRepository
     /// <summary>Stores a new (pending, inactive) provider application.</summary>
     Task AddAsync(Provider provider, CancellationToken ct = default);
 
-    /// <summary>Pending applications awaiting admin review (IsActive = false), newest first.</summary>
+    /// <summary>Never-reviewed applications awaiting a first decision, newest first.</summary>
     Task<IReadOnlyList<Provider>> GetPendingAsync(CancellationToken ct = default);
 
-    /// <summary>Approve (true) or deactivate (false) a provider.</summary>
+    /// <summary>Providers an admin has acted on (live + deactivated), live first.</summary>
+    Task<IReadOnlyList<Provider>> GetManagedAsync(CancellationToken ct = default);
+
+    /// <summary>Approve/activate (true) or deactivate (false) a provider; stamps ReviewedAt.</summary>
     Task SetActiveAsync(Guid id, bool active, CancellationToken ct = default);
+
+    /// <summary>Update a provider's editable fields (not its active/review state).</summary>
+    Task UpdateAsync(Provider provider, CancellationToken ct = default);
 
     /// <summary>Remove a provider (e.g. rejecting an application).</summary>
     Task DeleteAsync(Guid id, CancellationToken ct = default);

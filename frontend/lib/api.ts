@@ -6,9 +6,11 @@ import type {
   ChatMessage,
   DocumentDetail,
   DocumentSummary,
+  ManagedProvider,
   PendingProvider,
   Provider,
   ProviderApplication,
+  UpdateProvider,
 } from "@/lib/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080";
@@ -171,6 +173,13 @@ export const api = {
     request<{ ok: boolean }>(`/api/admin/providers/${id}/approve`, { method: "POST" }),
   adminReject: (id: string) =>
     request<void>(`/api/admin/providers/${id}`, { method: "DELETE" }),
+
+  // --- Admin: manage live/reviewed providers ---
+  adminListProviders: () => request<ManagedProvider[]>("/api/admin/providers"),
+  adminUpdateProvider: (id: string, body: UpdateProvider) =>
+    request<{ ok: boolean }>(`/api/admin/providers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  adminSetActive: (id: string, value: boolean) =>
+    request<{ ok: boolean }>(`/api/admin/providers/${id}/active?value=${value}`, { method: "POST" }),
 
   // --- Chat ---
   chatHistory: (id: string) => request<ChatMessage[]>(`/api/documents/${id}/chat`),

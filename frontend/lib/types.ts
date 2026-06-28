@@ -132,3 +132,29 @@ export interface PendingProvider {
   blurb: LocalizedText;
   createdAt: string;
 }
+
+// A reviewed provider (live or deactivated) shown on the manage tab.
+export interface ManagedProvider {
+  id: string;
+  category: number;
+  displayName: string;
+  city: string | null;
+  phone: string | null;
+  whatsApp: string | null;
+  contactEmail: string | null;
+  blurb: LocalizedText;
+  isActive: boolean;
+  priority: number;
+}
+
+// Admin edit payload (description fills all three blurb languages on the server).
+export interface UpdateProvider {
+  displayName: string;
+  category: number;
+  city?: string;
+  phone?: string;
+  whatsApp?: string;
+  contactEmail?: string;
+  description: string;
+  priority: number;
+}
