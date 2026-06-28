@@ -158,7 +158,7 @@ export const api = {
   // --- Sponsored referrals (no auth required — works for trial users too) ---
   getReferrals: (category: number) =>
     request<Provider[]>(`/api/referrals?category=${category}`),
-  logLead: (providerId: string, body: { category: number; urgency: number; documentId?: string }) =>
+  logLead: (providerId: string, body: { category: number; urgency: number; documentId?: string; ref?: string }) =>
     request<{ ok: boolean }>(`/api/referrals/${providerId}/lead`, {
       method: "POST",
       body: JSON.stringify(body),

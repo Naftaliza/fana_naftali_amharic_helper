@@ -48,5 +48,9 @@ public class Lead
     /// <summary>The source document, when known. Null for anonymous trial analyses.</summary>
     public Guid? DocumentId { get; set; }
 
+    /// <summary>Short human-readable code shown to the user, in the WhatsApp message, and on the
+    /// admin Leads tab — lets the provider quote it so you can match/confirm the lead.</summary>
+    public string? Ref { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
