@@ -11,6 +11,14 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Never scroll sideways. On mobile (especially RTL) a stray wide element would otherwise
+   push the right-anchored content off-screen; nothing in the app scrolls horizontally. */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 body {
   @apply text-gray-900 antialiased;
   font-family: var(--font-sans);
