@@ -6,7 +6,9 @@ import type {
   ChatMessage,
   DocumentDetail,
   DocumentSummary,
+  PendingProvider,
   Provider,
+  ProviderApplication,
 } from "@/lib/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080";
@@ -158,6 +160,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // --- Business self-registration (public) ---
+  applyAsProvider: (body: ProviderApplication) =>
+    request<{ ok: boolean }>("/api/partners/apply", { method: "POST", body: JSON.stringify(body) }),
+
+  // --- Admin: provider review (requires admin account) ---
+  adminListPending: () => request<PendingProvider[]>("/api/admin/providers/pending"),
+  adminApprove: (id: string) =>
+    request<{ ok: boolean }>(`/api/admin/providers/${id}/approve`, { method: "POST" }),
+  adminReject: (id: string) =>
+    request<void>(`/api/admin/providers/${id}`, { method: "DELETE" }),
 
   // --- Chat ---
   chatHistory: (id: string) => request<ChatMessage[]>(`/api/documents/${id}/chat`),

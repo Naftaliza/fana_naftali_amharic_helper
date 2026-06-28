@@ -16,6 +16,9 @@ public class Provider
     public string? WhatsApp { get; set; }
     public string? City { get; set; }
 
+    /// <summary>How to reach the applicant business. Set when they self-register.</summary>
+    public string? ContactEmail { get; set; }
+
     /// <summary>Short "what I help with" blurb, localized to all three languages.</summary>
     public LocalizedText Blurb { get; set; } = new();
 

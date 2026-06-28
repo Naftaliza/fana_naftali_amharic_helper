@@ -106,4 +106,29 @@ export interface AuthUser {
   email: string;
   displayName: string;
   preferredLanguage: number;
+  isAdmin?: boolean;
+}
+
+// Business self-registration payload (category is a DOCUMENT_CATEGORY int).
+export interface ProviderApplication {
+  displayName: string;
+  category: number;
+  city?: string;
+  phone?: string;
+  whatsApp?: string;
+  contactEmail: string;
+  description: string;
+}
+
+// A pending application shown on the admin review page.
+export interface PendingProvider {
+  id: string;
+  category: number;
+  displayName: string;
+  city: string | null;
+  phone: string | null;
+  whatsApp: string | null;
+  contactEmail: string | null;
+  blurb: LocalizedText;
+  createdAt: string;
 }

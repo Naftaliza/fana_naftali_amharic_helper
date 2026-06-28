@@ -32,6 +32,9 @@ services:
       Tts__AzureSpeechKey: "${AZURE_SPEECH_KEY:-}"
       Tts__AzureRegion: "${AZURE_SPEECH_REGION:-eastus}"
       Tts__ElevenLabsApiKey: "${ELEVENLABS_API_KEY:-}"
+      # Comma-separated emails that get admin access (provider review page).
+      # Must match the email of a registered Fana account.
+      Admin__Emails: "${ADMIN_EMAILS:-}"
       Frontend__Origin: "http://localhost:3001"
     ports:
       - "5080:8080"

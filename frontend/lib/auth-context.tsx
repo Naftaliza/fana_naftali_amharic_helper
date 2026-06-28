@@ -29,13 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const res = await api.login({ email, password });
     tokenStore.set(res.accessToken, res.refreshToken);
-    setUser(res.user);
+    // Fetch /me so flags computed server-side (e.g. isAdmin) are authoritative.
+    setUser(await api.me().catch(() => res.user));
   };
 
   const register = async (email: string, password: string, displayName: string, preferredLanguage: number) => {
     const res = await api.register({ email, password, displayName, preferredLanguage });
     tokenStore.set(res.accessToken, res.refreshToken);
-    setUser(res.user);
+    setUser(await api.me().catch(() => res.user));
   };
 
   const logout = () => {

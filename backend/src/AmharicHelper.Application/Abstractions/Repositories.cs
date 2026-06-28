@@ -50,6 +50,18 @@ public interface IProviderRepository
 {
     Task<IReadOnlyList<Provider>> GetActiveByCategoryAsync(DocumentCategory category, int limit, CancellationToken ct = default);
     Task<Provider?> GetByIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Stores a new (pending, inactive) provider application.</summary>
+    Task AddAsync(Provider provider, CancellationToken ct = default);
+
+    /// <summary>Pending applications awaiting admin review (IsActive = false), newest first.</summary>
+    Task<IReadOnlyList<Provider>> GetPendingAsync(CancellationToken ct = default);
+
+    /// <summary>Approve (true) or deactivate (false) a provider.</summary>
+    Task SetActiveAsync(Guid id, bool active, CancellationToken ct = default);
+
+    /// <summary>Remove a provider (e.g. rejecting an application).</summary>
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
 /// <summary>Records each user→provider contact (the billable referral unit).</summary>

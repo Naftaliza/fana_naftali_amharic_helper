@@ -32,6 +32,53 @@ public class ProviderRepository(ISqlConnectionFactory factory) : IProviderReposi
         return row?.ToEntity();
     }
 
+    public async Task AddAsync(Provider provider, CancellationToken ct = default)
+    {
+        using var conn = factory.Create();
+        await conn.ExecuteAsync(
+            """
+            INSERT INTO Providers
+                (Id, Category, DisplayName, Phone, WhatsApp, City, ContactEmail, Blurb, IsActive, Priority, CreatedAt)
+            VALUES
+                (@Id, @Category, @DisplayName, @Phone, @WhatsApp, @City, @ContactEmail, @Blurb, @IsActive, @Priority, @CreatedAt)
+            """,
+            new
+            {
+                provider.Id,
+                Category = (int)provider.Category,
+                provider.DisplayName,
+                provider.Phone,
+                provider.WhatsApp,
+                provider.City,
+                provider.ContactEmail,
+                Blurb = JsonSerializer.Serialize(provider.Blurb),
+                provider.IsActive,
+                provider.Priority,
+                provider.CreatedAt
+            });
+    }
+
+    public async Task<IReadOnlyList<Provider>> GetPendingAsync(CancellationToken ct = default)
+    {
+        using var conn = factory.Create();
+        var rows = await conn.QueryAsync<ProviderRow>(
+            "SELECT * FROM Providers WHERE IsActive = FALSE ORDER BY CreatedAt DESC");
+        return rows.Select(r => r.ToEntity()).ToList();
+    }
+
+    public async Task SetActiveAsync(Guid id, bool active, CancellationToken ct = default)
+    {
+        using var conn = factory.Create();
+        await conn.ExecuteAsync(
+            "UPDATE Providers SET IsActive = @active WHERE Id = @id", new { id, active });
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    {
+        using var conn = factory.Create();
+        await conn.ExecuteAsync("DELETE FROM Providers WHERE Id = @id", new { id });
+    }
+
     /// <summary>Raw row matching the SQL columns; the JSON Blurb is deserialized in <see cref="ToEntity"/>.</summary>
     private class ProviderRow
     {
@@ -41,6 +88,7 @@ public class ProviderRepository(ISqlConnectionFactory factory) : IProviderReposi
         public string? Phone { get; set; }
         public string? WhatsApp { get; set; }
         public string? City { get; set; }
+        public string? ContactEmail { get; set; }
         public string Blurb { get; set; } = "{}";
         public bool IsActive { get; set; }
         public int Priority { get; set; }
@@ -54,6 +102,7 @@ public class ProviderRepository(ISqlConnectionFactory factory) : IProviderReposi
             Phone = Phone,
             WhatsApp = WhatsApp,
             City = City,
+            ContactEmail = ContactEmail,
             Blurb = JsonSerializer.Deserialize<LocalizedText>(Blurb) ?? new(),
             IsActive = IsActive,
             Priority = Priority,
