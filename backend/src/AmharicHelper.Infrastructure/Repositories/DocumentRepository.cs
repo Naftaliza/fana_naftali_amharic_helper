@@ -27,8 +27,8 @@ public class DocumentRepository(ISqlConnectionFactory factory) : IDocumentReposi
         using var conn = factory.Create();
         await conn.ExecuteAsync(
             """
-            INSERT INTO Documents (Id, UserId, FileName, FilePath, ContentType, OcrText, UploadedAt)
-            VALUES (@Id, @UserId, @FileName, @FilePath, @ContentType, @OcrText, @UploadedAt)
+            INSERT INTO Documents (Id, UserId, FileName, FilePath, ContentType, OcrText, PagePaths, UploadedAt)
+            VALUES (@Id, @UserId, @FileName, @FilePath, @ContentType, @OcrText, @PagePaths, @UploadedAt)
             """, document);
     }
 

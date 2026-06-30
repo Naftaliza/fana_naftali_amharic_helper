@@ -12,6 +12,7 @@ import type {
   Provider,
   ProviderApplication,
   UpdateProvider,
+  UploadDocumentResult,
 } from "@/lib/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080";
@@ -86,6 +87,10 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
     return request<T>(path, options, false);
   }
 
+  // Request body too large (size limit) — the response has no JSON body; surface a stable code the
+  // UI can localize instead of the raw "Payload Too Large" status text.
+  if (res.status === 413) throw new Error("UPLOAD_TOO_LARGE");
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error ?? "Request failed");
@@ -109,19 +114,20 @@ export const api = {
   listDocuments: () => request<DocumentSummary[]>("/api/documents"),
   getDocument: (id: string) => request<DocumentDetail>(`/api/documents/${id}`),
   deleteDocument: (id: string) => request<void>(`/api/documents/${id}`, { method: "DELETE" }),
-  uploadDocument: (file: File) => {
+  // Accepts one or more pages; order is preserved end-to-end (browser → Request.Form.Files → binding).
+  uploadDocument: (files: File[]) => {
     const form = new FormData();
-    form.append("file", file);
-    return request<DocumentSummary>("/api/documents", { method: "POST", body: form });
+    files.forEach((f) => form.append("files", f));
+    return request<UploadDocumentResult>("/api/documents", { method: "POST", body: form });
   },
   // Generic analysis — the AI auto-detects the document type (bank, government, etc.).
   analyze: (id: string) =>
     request<AnalysisResult>(`/api/documents/${id}/analyze`, { method: "POST" }),
 
   // --- Anonymous trial (no auth, nothing saved) ---
-  trialAnalyze: (file: File) => {
+  trialAnalyze: (files: File[]) => {
     const form = new FormData();
-    form.append("file", file);
+    files.forEach((f) => form.append("files", f));
     return request<AnalysisResult>("/api/trial/analyze", { method: "POST", body: form });
   },
   trialSpeech: async (analysis: AnalysisResult, language: number): Promise<Blob> => {

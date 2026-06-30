@@ -85,6 +85,15 @@ export interface DocumentSummary {
   hasAnalysis: boolean;
 }
 
+export interface UploadDocumentResult {
+  id: string;
+  fileName: string;
+  contentType: string;
+  uploadedAt: string;
+  pageCount: number;
+  skippedPages: number;
+}
+
 export interface DocumentDetail {
   id: string;
   fileName: string;

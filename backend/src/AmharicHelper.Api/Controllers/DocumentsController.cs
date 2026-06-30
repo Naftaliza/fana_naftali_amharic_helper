@@ -11,18 +11,21 @@ namespace AmharicHelper.Api.Controllers;
 [Authorize]
 public class DocumentsController(IMediator mediator) : ApiControllerBase(mediator)
 {
-    /// <summary>Upload a document (PDF/JPG/PNG). Runs OCR on upload.</summary>
+    /// <summary>
+    /// Maximum pages per uploaded document. Bounds OCR cost/latency per request and the stored
+    /// file count. Kept generous enough for a long multi-page letter.
+    /// </summary>
+    private const int MaxPages = 10;
+
+    /// <summary>Upload a document of one or more pages (PDF/JPG/PNG). Runs OCR on upload.</summary>
     [HttpPost]
-    [RequestSizeLimit(20_000_000)]
-    public async Task<IActionResult> Upload(IFormFile file)
+    [RequestSizeLimit(60_000_000)]
+    public async Task<IActionResult> Upload(List<IFormFile> files)
     {
-        if (file is null || file.Length == 0) return BadRequest(new { error = "No file provided." });
+        var (pages, error) = await UploadValidation.BuildPagesAsync(files, MaxPages, HttpContext.RequestAborted);
+        if (error is not null) return BadRequest(new { error });
 
-        using var ms = new MemoryStream();
-        await file.CopyToAsync(ms);
-        var result = await Mediator.Send(
-            new UploadDocumentCommand(CurrentUserId, file.FileName, file.ContentType, ms.ToArray()));
-
+        var result = await Mediator.Send(new UploadDocumentCommand(CurrentUserId, pages!));
         return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
     }
 

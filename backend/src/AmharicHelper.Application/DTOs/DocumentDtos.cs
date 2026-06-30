@@ -9,6 +9,22 @@ public record DocumentSummaryDto(
     DateTime UploadedAt,
     bool HasAnalysis);
 
+/// <summary>
+/// Result of a (possibly multi-page) upload. <paramref name="PageCount"/> is the number of pages
+/// whose text was kept; <paramref name="SkippedPages"/> is how many pages were dropped because they
+/// were blank/unreadable, so the UI can warn the user (e.g. "page 4 couldn't be read").
+/// </summary>
+public record UploadDocumentResultDto(
+    Guid Id,
+    string FileName,
+    string ContentType,
+    DateTime UploadedAt,
+    int PageCount,
+    int SkippedPages);
+
+/// <summary>One uploaded page: its original bytes and metadata, before OCR.</summary>
+public record UploadPage(string FileName, string ContentType, byte[] Content);
+
 public record DocumentDetailDto(
     Guid Id,
     string FileName,

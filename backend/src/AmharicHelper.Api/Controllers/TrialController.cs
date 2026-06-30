@@ -17,16 +17,19 @@ namespace AmharicHelper.Api.Controllers;
 [EnableRateLimiting("trial")]
 public class TrialController(IMediator mediator) : ControllerBase
 {
-    /// <summary>Upload a document and get a generic analysis without signing in or saving anything.</summary>
-    [HttpPost("analyze")]
-    [RequestSizeLimit(20_000_000)]
-    public async Task<IActionResult> Analyze(IFormFile file)
-    {
-        if (file is null || file.Length == 0) return BadRequest(new { error = "No file provided." });
+    // Trial batches are capped tighter than logged-in uploads: the trial rate limit is per-request,
+    // so a single huge batch would otherwise evade the cost control on anonymous Claude usage.
+    private const int MaxTrialPages = 5;
 
-        using var ms = new MemoryStream();
-        await file.CopyToAsync(ms);
-        var result = await mediator.Send(new AnalyzeTrialCommand(ms.ToArray(), file.ContentType));
+    /// <summary>Upload one or more pages and get a generic analysis without signing in or saving anything.</summary>
+    [HttpPost("analyze")]
+    [RequestSizeLimit(60_000_000)]
+    public async Task<IActionResult> Analyze(List<IFormFile> files)
+    {
+        var (pages, error) = await UploadValidation.BuildPagesAsync(files, MaxTrialPages, HttpContext.RequestAborted);
+        if (error is not null) return BadRequest(new { error });
+
+        var result = await mediator.Send(new AnalyzeTrialCommand(pages!));
         return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
     }
 

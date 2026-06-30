@@ -1,5 +1,6 @@
 using AmharicHelper.Application.Abstractions;
 using AmharicHelper.Application.Common;
+using AmharicHelper.Application.Documents;
 using AmharicHelper.Application.DTOs;
 using AmharicHelper.Domain.Entities;
 using AmharicHelper.Domain.Enums;
@@ -7,33 +8,59 @@ using MediatR;
 
 namespace AmharicHelper.Application.Features.Documents;
 
-// ---- Upload + OCR ----
-public record UploadDocumentCommand(
-    Guid UserId, string FileName, string ContentType, byte[] Content)
-    : IRequest<Result<DocumentSummaryDto>>;
+// ---- Upload + OCR (one or more pages) ----
+public record UploadDocumentCommand(Guid UserId, IReadOnlyList<UploadPage> Pages)
+    : IRequest<Result<UploadDocumentResultDto>>;
 
 public class UploadDocumentHandler(
     IFileStorage storage,
     IOcrProvider ocr,
-    IDocumentRepository documents) : IRequestHandler<UploadDocumentCommand, Result<DocumentSummaryDto>>
+    IDocumentRepository documents) : IRequestHandler<UploadDocumentCommand, Result<UploadDocumentResultDto>>
 {
-    public async Task<Result<DocumentSummaryDto>> Handle(UploadDocumentCommand cmd, CancellationToken ct)
+    public async Task<Result<UploadDocumentResultDto>> Handle(UploadDocumentCommand cmd, CancellationToken ct)
     {
-        var path = await storage.SaveAsync(cmd.Content, cmd.FileName, ct);
-        var ocrText = await ocr.ExtractTextAsync(cmd.Content, cmd.ContentType, ct);
+        if (cmd.Pages.Count == 0)
+            return Result<UploadDocumentResultDto>.Fail("No pages provided.");
 
+        // OCR every page first, then save only the kept ones — so a mid-batch OCR failure leaves no
+        // orphaned files on disk. A configuration error (missing key) throws out to the controller.
+        MultiPageOcr.Result ocrResult;
+        try
+        {
+            ocrResult = await MultiPageOcr.RunAsync(
+                cmd.Pages.Select(p => (p.Content, p.ContentType)).ToList(), ocr, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result<UploadDocumentResultDto>.Fail(ex.Message);
+        }
+
+        if (ocrResult.KeptPageIndices.Count == 0)
+            return Result<UploadDocumentResultDto>.Fail("No readable text was found in the document.");
+
+        // Save only the pages whose text we kept, preserving order.
+        var pagePaths = new List<string>(ocrResult.KeptPageIndices.Count);
+        foreach (var i in ocrResult.KeptPageIndices)
+        {
+            var page = cmd.Pages[i];
+            pagePaths.Add(await storage.SaveAsync(page.Content, page.FileName, ct));
+        }
+
+        var firstKept = cmd.Pages[ocrResult.KeptPageIndices[0]];
         var doc = new Document
         {
             UserId = cmd.UserId,
-            FileName = cmd.FileName,
-            FilePath = path,
-            ContentType = cmd.ContentType,
-            OcrText = ocrText
+            FileName = firstKept.FileName,
+            FilePath = pagePaths[0],
+            ContentType = firstKept.ContentType,
+            OcrText = ocrResult.CombinedText,
+            PagePaths = pagePaths.ToArray()
         };
         await documents.AddAsync(doc, ct);
 
-        return Result<DocumentSummaryDto>.Ok(
-            new DocumentSummaryDto(doc.Id, doc.FileName, doc.ContentType, doc.UploadedAt, false));
+        return Result<UploadDocumentResultDto>.Ok(new UploadDocumentResultDto(
+            doc.Id, doc.FileName, doc.ContentType, doc.UploadedAt,
+            PageCount: pagePaths.Count, SkippedPages: ocrResult.SkippedCount));
     }
 }
 
@@ -52,11 +79,17 @@ public class DeleteDocumentHandler(
         if (doc is null || doc.UserId != cmd.UserId)
             return Result<bool>.Fail("Document not found.");
 
-        // Remove children first to satisfy foreign keys, then the document and its file.
+        // Remove children first to satisfy foreign keys, then the document and its files.
         await messages.DeleteByDocumentIdAsync(doc.Id, ct);
         await analyses.DeleteByDocumentIdAsync(doc.Id, ct);
         await documents.DeleteAsync(doc.Id, ct);
-        await storage.DeleteAsync(doc.FilePath, ct);
+
+        // Delete every page file. PagePaths includes page 0 (also in FilePath), so dedupe to avoid a
+        // double delete. Legacy single-file rows have empty PagePaths → fall back to FilePath.
+        var paths = new HashSet<string>(doc.PagePaths, StringComparer.Ordinal);
+        if (!string.IsNullOrEmpty(doc.FilePath)) paths.Add(doc.FilePath);
+        foreach (var path in paths)
+            await storage.DeleteAsync(path, ct);
 
         return Result<bool>.Ok(true);
     }

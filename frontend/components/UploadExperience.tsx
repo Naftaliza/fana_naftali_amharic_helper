@@ -34,23 +34,31 @@ export function UploadExperience() {
 
   useEffect(() => { setRemaining(trialRemaining()); }, []);
 
-  const handleFile = async (file: File | undefined) => {
-    if (!file) return;
+  const handleFiles = async (files: File[]) => {
+    if (!files.length) return;
+    // A PDF is already multi-page and is OCR'd as a single block — don't let it be mixed with
+    // image pages in one document (it would break page numbering). A lone PDF is fine.
+    if (files.length > 1 && files.some((f) => f.type === "application/pdf")) {
+      setError(t("upload.noMixedPdf"));
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       if (user) {
-        const doc = await api.uploadDocument(file);
-        router.push(`/documents/${doc.id}`);
+        const doc = await api.uploadDocument(files);
+        const q = doc.skippedPages > 0 ? `?skipped=${doc.skippedPages}` : "";
+        router.push(`/documents/${doc.id}${q}`);
       } else {
-        const result = await api.trialAnalyze(file);
+        const result = await api.trialAnalyze(files);
         incrementTrial();
         setRemaining(trialRemaining());
         setTrialResult(result);
         setBusy(false);
       }
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).message;
+      setError(msg === "UPLOAD_TOO_LARGE" ? t("upload.tooLarge") : msg);
       setBusy(false);
     }
   };
@@ -121,14 +129,14 @@ export function UploadExperience() {
       )}
       {error && <p role="alert" className="text-red-600">{error}</p>}
 
-      <input ref={inputRef} type="file" accept={ACCEPT} className="hidden"
-        onChange={(e) => handleFile(e.target.files?.[0])} />
+      <input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden"
+        onChange={(e) => handleFiles(Array.from(e.target.files ?? []))} />
 
       {cameraOpen && (
         <CameraCapture
           onClose={() => setCameraOpen(false)}
           onChooseFile={() => inputRef.current?.click()}
-          onCapture={(file) => { setCameraOpen(false); handleFile(file); }}
+          onCapture={(files) => { setCameraOpen(false); handleFiles(files); }}
         />
       )}
     </div>

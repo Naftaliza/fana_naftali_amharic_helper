@@ -2,22 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Camera, X, SwitchCamera, RotateCcw, Check, ImageUp } from "lucide-react";
+import { Camera, X, SwitchCamera, RotateCcw, Check, ImageUp, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 
 type Facing = "environment" | "user";
+type Page = { url: string; file: File };
 
 /**
- * Full-screen in-app camera. Shows a live preview, captures a frame to a JPEG File,
- * lets the user review (retake / use), and supports switching front/back cameras.
- * Requires a secure context (https or localhost).
+ * Full-screen in-app camera supporting multi-page capture. Shows a live preview, captures a frame to
+ * a JPEG File, lets the user review (retake / add), accumulates pages with a thumbnail strip
+ * (remove / reorder), and returns all pages at once via onCapture. Requires a secure context.
  */
 export function CameraCapture({
   onCapture,
   onClose,
   onChooseFile,
 }: {
-  onCapture: (file: File) => void;
+  onCapture: (files: File[]) => void;
   onClose: () => void;
   onChooseFile: () => void;
 }) {
@@ -26,12 +27,18 @@ export function CameraCapture({
   const streamRef = useRef<MediaStream | null>(null);
   const [facing, setFacing] = useState<Facing>("environment");
   const [preview, setPreview] = useState<{ url: string; file: File } | null>(null);
+  const [pages, setPages] = useState<Page[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
   // Render via a portal to document.body so the full-screen `fixed inset-0` resolves
   // against the viewport, not a transformed ancestor (the upload page's animated wrapper).
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // Keep the latest pages/preview in a ref so the unmount cleanup revokes every object URL
+  // without re-running (and tearing down the stream) on each capture.
+  const cleanupRef = useRef<{ pages: Page[]; preview: { url: string } | null }>({ pages: [], preview: null });
+  cleanupRef.current = { pages, preview };
 
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((tr) => tr.stop());
@@ -70,7 +77,12 @@ export function CameraCapture({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facing]);
 
-  useEffect(() => () => stop(), [stop]);
+  // On unmount, stop the stream and revoke every object URL (preview + all thumbnails).
+  useEffect(() => () => {
+    stop();
+    if (cleanupRef.current.preview) URL.revokeObjectURL(cleanupRef.current.preview.url);
+    cleanupRef.current.pages.forEach((p) => URL.revokeObjectURL(p.url));
+  }, [stop]);
 
   const capture = () => {
     const video = videoRef.current;
@@ -82,7 +94,7 @@ export function CameraCapture({
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
-        const file = new File([blob], "photo.jpg", { type: "image/jpeg" });
+        const file = new File([blob], `photo-${pages.length + 1}.jpg`, { type: "image/jpeg" });
         setPreview({ url: URL.createObjectURL(blob), file });
         stop(); // freeze on the captured shot; turn the camera off during review
       },
@@ -97,10 +109,36 @@ export function CameraCapture({
     startStream(facing);
   };
 
-  const use = () => {
+  // Accept the reviewed shot as a page and return to the live viewfinder for the next page.
+  const addPage = () => {
     if (!preview) return;
-    onCapture(preview.file);
-    URL.revokeObjectURL(preview.url);
+    setPages((p) => [...p, preview]); // keep the URL alive for the thumbnail
+    setPreview(null);
+    startStream(facing);
+  };
+
+  const removePage = (index: number) => {
+    setPages((p) => {
+      const target = p[index];
+      if (target) URL.revokeObjectURL(target.url);
+      return p.filter((_, i) => i !== index);
+    });
+  };
+
+  const movePage = (index: number, dir: -1 | 1) => {
+    setPages((p) => {
+      const j = index + dir;
+      if (j < 0 || j >= p.length) return p;
+      const next = [...p];
+      [next[index], next[j]] = [next[j], next[index]];
+      return next;
+    });
+  };
+
+  // Finish: hand all captured pages to the parent (revoking thumbnail URLs is left to unmount).
+  const done = () => {
+    if (pages.length === 0) return;
+    onCapture(pages.map((p) => p.file));
   };
 
   const close = () => { stop(); onClose(); };
@@ -130,6 +168,11 @@ export function CameraCapture({
         <button onClick={close} aria-label={t("camera.cancel")} className="grid h-11 w-11 place-items-center rounded-full bg-white/15 text-white">
           <X className="h-6 w-6" />
         </button>
+        {pages.length > 0 && (
+          <span className="rounded-full bg-white/15 px-3 py-1 text-sm font-medium text-white">
+            {t("camera.pageCount").replace("{n}", String(pages.length))}
+          </span>
+        )}
         {!preview && !error && (
           <button onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
             aria-label={t("camera.switch")} className="grid h-11 w-11 place-items-center rounded-full bg-white/15 text-white">
@@ -162,6 +205,33 @@ export function CameraCapture({
         )}
       </div>
 
+      {/* Thumbnail strip of captured pages (hidden while reviewing a fresh shot) */}
+      {!preview && !error && pages.length > 0 && (
+        <div className="flex gap-3 overflow-x-auto px-4 py-3">
+          {pages.map((p, i) => (
+            <div key={p.url} className="relative shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.url} alt={`${t("camera.pageLabel")} ${i + 1}`} className="h-20 w-16 rounded-lg object-cover" />
+              <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 text-xs text-white">{i + 1}</span>
+              <button onClick={() => removePage(i)} aria-label={t("camera.removePage")}
+                className="absolute -right-2 -top-2 grid h-7 w-7 place-items-center rounded-full bg-red-600 text-white">
+                <Trash2 className="h-4 w-4" />
+              </button>
+              <div className="mt-1 flex justify-center gap-1">
+                <button onClick={() => movePage(i, -1)} disabled={i === 0} aria-label={t("camera.moveUp")}
+                  className="grid h-7 w-7 place-items-center rounded bg-white/15 text-white disabled:opacity-30">
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button onClick={() => movePage(i, 1)} disabled={i === pages.length - 1} aria-label={t("camera.moveDown")}
+                  className="grid h-7 w-7 place-items-center rounded bg-white/15 text-white disabled:opacity-30">
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Controls */}
       {!error && (
         <div className="flex items-center justify-center gap-8 p-6">
@@ -171,14 +241,22 @@ export function CameraCapture({
                 <span className="grid h-14 w-14 place-items-center rounded-full bg-white/15"><RotateCcw className="h-7 w-7" /></span>
                 <span className="text-sm">{t("camera.retake")}</span>
               </button>
-              <button onClick={use} className="flex flex-col items-center gap-1 text-white">
-                <span className="grid h-16 w-16 place-items-center rounded-full bg-brand"><Check className="h-8 w-8" /></span>
-                <span className="text-sm">{t("camera.use")}</span>
+              <button onClick={addPage} className="flex flex-col items-center gap-1 text-white">
+                <span className="grid h-16 w-16 place-items-center rounded-full bg-brand"><Plus className="h-8 w-8" /></span>
+                <span className="text-sm">{t("camera.addPage")}</span>
               </button>
             </>
           ) : (
-            <button onClick={capture} disabled={starting} aria-label={t("camera.capture")}
-              className="h-20 w-20 rounded-full border-4 border-white bg-white/30 ring-4 ring-white/40 transition active:scale-95 disabled:opacity-50" />
+            <>
+              <button onClick={capture} disabled={starting} aria-label={t("camera.capture")}
+                className="h-20 w-20 rounded-full border-4 border-white bg-white/30 ring-4 ring-white/40 transition active:scale-95 disabled:opacity-50" />
+              {pages.length > 0 && (
+                <button onClick={done} className="flex flex-col items-center gap-1 text-white">
+                  <span className="grid h-16 w-16 place-items-center rounded-full bg-brand"><Check className="h-8 w-8" /></span>
+                  <span className="text-sm">{t("camera.done")}</span>
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

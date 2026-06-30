@@ -12,5 +12,11 @@ public class Document
     /// <summary>Raw text extracted by the OCR provider. Null until OCR runs.</summary>
     public string? OcrText { get; set; }
 
+    /// <summary>
+    /// Ordered list of stored file paths, one per page (page 0 also lives in <see cref="FilePath"/>
+    /// for back-compat). Empty for legacy single-file documents. Authoritative for file cleanup.
+    /// </summary>
+    public string[] PagePaths { get; set; } = [];
+
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
 }

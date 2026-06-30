@@ -16,6 +16,12 @@ export default function DocumentDetailPage() {
   const { t } = useLanguage();
   const params = useParams();
   const id = params.id as string;
+  const [skipped, setSkipped] = useState(0);
+  // Read once on mount from the query (set after a multi-page upload where some pages were skipped).
+  // Avoids useSearchParams so the client page needs no Suspense boundary.
+  useEffect(() => {
+    setSkipped(Number(new URLSearchParams(window.location.search).get("skipped") ?? 0));
+  }, []);
   const [doc, setDoc] = useState<DocumentDetail | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +64,12 @@ export default function DocumentDetailPage() {
           </Link>
         )}
       </div>
+
+      {skipped > 0 && (
+        <p role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          {t("doc.pagesSkipped").replace("{n}", String(skipped))}
+        </p>
+      )}
 
       {/* While analyzing, show a friendly multi-step waiting state. */}
       {!doc.analysis && analyzing && <AnalyzingState />}

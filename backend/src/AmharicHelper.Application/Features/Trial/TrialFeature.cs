@@ -1,5 +1,6 @@
 using AmharicHelper.Application.Abstractions;
 using AmharicHelper.Application.Common;
+using AmharicHelper.Application.Documents;
 using AmharicHelper.Application.DTOs;
 using AmharicHelper.Application.Tts;
 using AmharicHelper.Domain.Enums;
@@ -10,27 +11,33 @@ namespace AmharicHelper.Application.Features.Trial;
 /// <summary>
 /// Anonymous "try it" analysis. Runs OCR + AI entirely in memory and returns the result —
 /// nothing is persisted (no user, no document, no analysis row). The 3-try limit is enforced
-/// on the client. Category is always generic (auto-detected).
+/// on the client. Category is always generic (auto-detected). Supports multiple pages.
 /// </summary>
-public record AnalyzeTrialCommand(byte[] Content, string ContentType) : IRequest<Result<DocumentAnalysisResult>>;
+public record AnalyzeTrialCommand(IReadOnlyList<UploadPage> Pages) : IRequest<Result<DocumentAnalysisResult>>;
 
 public class AnalyzeTrialHandler(IOcrProvider ocr, IAiProvider ai)
     : IRequestHandler<AnalyzeTrialCommand, Result<DocumentAnalysisResult>>
 {
     public async Task<Result<DocumentAnalysisResult>> Handle(AnalyzeTrialCommand cmd, CancellationToken ct)
     {
-        string ocrText;
+        if (cmd.Pages.Count == 0)
+            return Result<DocumentAnalysisResult>.Fail("No pages provided.");
+
+        MultiPageOcr.Result ocrResult;
         try
         {
-            ocrText = await ocr.ExtractTextAsync(cmd.Content, cmd.ContentType, ct);
+            ocrResult = await MultiPageOcr.RunAsync(
+                cmd.Pages.Select(p => (p.Content, p.ContentType)).ToList(), ocr, ct);
         }
         catch (InvalidOperationException ex)
         {
             return Result<DocumentAnalysisResult>.Fail(ex.Message);
         }
 
-        if (string.IsNullOrWhiteSpace(ocrText))
+        if (ocrResult.KeptPageIndices.Count == 0)
             return Result<DocumentAnalysisResult>.Fail("No readable text was found in the document.");
+
+        var ocrText = ocrResult.CombinedText;
 
         try
         {

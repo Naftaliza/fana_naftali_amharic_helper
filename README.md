@@ -4,13 +4,17 @@ Help Amharic-speaking residents of Israel understand official Hebrew documents
 (government, bank, insurance, healthcare, municipality, employer). Upload a
 document → OCR extracts the text → AI produces a structured analysis (summary,
 type, urgency, key points, required actions, deadlines) **in all three languages**
-→ listen to a spoken explanation → chat with the document for follow-up questions.
+→ listen to a spoken explanation → chat with the document for follow-up questions
+→ get matched to vetted professionals (accountant, lawyer, insurance agent…) who
+can help with that document.
 
 > **Status:** Deployed and running. Frontend on **Netlify**, backend + **PostgreSQL**
 > on **Railway**. The full pipeline runs end-to-end on real providers: **Claude**
 > for OCR (vision) and analysis, **Azure Neural TTS** for spoken explanations
 > (incl. native Amharic voices). Every analysis field is generated in Hebrew,
-> Amharic, and English so the UI and audio stay in one chosen language.
+> Amharic, and English so the UI and audio stay in one chosen language. A
+> sponsored-referral marketplace (vetted providers, lead tracking, partner
+> self-registration, and an admin review console) is built in.
 
 ## Tech stack
 
@@ -18,13 +22,15 @@ type, urgency, key points, required actions, deadlines) **in all three languages
 |-----------|----------------------------------------------------------------------|
 | Backend   | ASP.NET Core 9 Web API · Clean Architecture · CQRS (MediatR) · Repository pattern · Dapper |
 | Database  | PostgreSQL (via Npgsql); Railway-managed in production, Docker locally |
-| Auth      | JWT access + refresh tokens, PBKDF2 password hashing                 |
+| Auth      | JWT access + refresh tokens, PBKDF2 password hashing; admins by `Admin:Emails` allowlist |
+| Referrals | Vetted providers matched per document category · per-lead tracking for billing · anonymous partner self-registration · admin approve/manage console |
 | AI        | `IAiProvider` → `ClaudeAiProvider` (default) / `OpenAiProvider`      |
 | OCR       | `IOcrProvider` → `ClaudeOcrProvider` (default) / Google Vision / Azure |
 | TTS       | `ITtsProvider` → `AzureTtsProvider` (default) / ElevenLabs · audio cached per (document, language) |
 | Frontend  | Next.js 15 · TypeScript · Tailwind CSS · shadcn-style UI             |
 | Languages | Hebrew (default, RTL) · Amharic · English                            |
 | Hosting   | Netlify (frontend) · Railway (API + PostgreSQL) — see `DEPLOY.md`    |
+| Hardening | Per-endpoint rate limiting (auth/trial/referrals) · CORS policy · PWA service worker · accessibility widget |
 
 ## Project structure
 
@@ -43,15 +49,21 @@ Fana 2.0/
 │  └─ tests/AmharicHelper.UnitTests/
 └─ frontend/
    ├─ app/                      # landing, login, register, dashboard, upload,
-   │                           #   documents/[id], documents/[id]/chat, profile
-   ├─ components/               # Navbar, language picker, FileDropzone, AnalysisCard, ui/
+   │                           #   documents/[id], documents/[id]/chat, profile,
+   │                           #   partners (self-registration), admin/providers
+   ├─ components/               # Navbar, UploadExperience, CameraCapture, AnalysisCard,
+   │                           #   ReferralBlock, AccessibilityWidget, ServiceWorker, ui/
    ├─ lib/                      # api client, auth + language contexts, types
    └─ i18n/                     # he / am / en dictionaries
 ```
 
+The backend Application layer is organized by feature (`Auth`, `Documents`,
+`Chat`, `Trial`, `Partners`, `Referrals`), each with its CQRS commands/queries.
+
 ### Database schema
 `Users`, `RefreshTokens`, `Documents`, `DocumentAnalyses`, `ChatMessages`,
-`TtsAudioCache` (see `backend/src/AmharicHelper.Infrastructure/Migrations/`).
+`TtsAudioCache`, `Providers`, `Leads` (see
+`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`009`).
 Migrations are idempotent PostgreSQL and run on API startup. Analysis text
 columns store JSON localized to `{ he, am, en }`.
 
@@ -63,6 +75,10 @@ columns store JSON localized to `{ he, am, en }`.
 - `GET  /api/documents/{id}/speech?language=` (spoken explanation, MP3)
 - `GET|POST /api/documents/{id}/chat`
 - `POST /api/trial/analyze`, `POST /api/trial/speech` (anonymous trial, nothing saved)
+- `GET  /api/referrals?category=` (matched providers), `POST /api/referrals/{providerId}/lead` (log a contact) — anonymous, rate-limited
+- `POST /api/partners/apply` (business self-registration, anonymous, rate-limited)
+- `GET|PUT|POST|DELETE /api/admin/providers...` (review/manage providers — admin only)
+- `GET  /api/admin/leads` (lead overview — admin only)
 - `GET /health`
 
 ## Local development
@@ -119,6 +135,7 @@ variables (double-underscore syntax, e.g. `Ai__Provider`):
 | `Ocr__Provider`           | `Claude`, `Mock`, `Google`, or `Azure`             | `Claude`      |
 | `Tts__Provider`           | `Azure` or `ElevenLabs`                            | `Azure`       |
 | `Tts__AzureSpeechKey` / `Tts__AzureRegion` | Azure Speech credentials          | empty         |
+| `Admin__Emails`           | CSV of emails granted admin access (provider/lead consoles) | empty |
 
 ## Deployment
 
@@ -135,5 +152,6 @@ Full step-by-step instructions, environment variables, and service settings are 
   it behind `IFileStorage` for blob storage if you need uploads to outlive the container.
 
 ## Future features (not implemented)
-WhatsApp integration · mobile app · lawyer referral · government-forms assistant ·
-appointment booking.
+Native mobile app · government-forms assistant · appointment booking. (The
+professional-referral marketplace, originally a future item, is now built — see
+**Referrals** above. Contact links include WhatsApp deep-links.)
