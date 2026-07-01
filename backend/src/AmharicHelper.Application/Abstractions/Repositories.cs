@@ -81,6 +81,13 @@ public interface ILeadRepository
 
     /// <summary>The most recent leads, newest first.</summary>
     Task<IReadOnlyList<RecentLeadDto>> GetRecentAsync(int limit, CancellationToken ct = default);
+
+    /// <summary>Update a lead's lifecycle status (admin action).</summary>
+    Task UpdateStatusAsync(Guid leadId, LeadStatus status, CancellationToken ct = default);
+
+    /// <summary>Record the anonymous post-contact "did this help?" signal for the lead matching
+    /// this ref code. Returns false if no lead has that ref.</summary>
+    Task<bool> SetFeedbackAsync(string refCode, bool helpful, CancellationToken ct = default);
 }
 
 public interface IChatMessageRepository

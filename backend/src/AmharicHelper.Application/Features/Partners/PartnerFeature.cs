@@ -94,6 +94,24 @@ public class GetLeadsOverviewHandler(
     }
 }
 
+// ---- Admin: update a lead's lifecycle status ----
+public record UpdateLeadStatusCommand(Guid AdminUserId, Guid LeadId, LeadStatus Status) : IRequest<Result<bool>>;
+
+public class UpdateLeadStatusHandler(
+    ILeadRepository leads,
+    IUserRepository users,
+    IConfiguration config) : IRequestHandler<UpdateLeadStatusCommand, Result<bool>>
+{
+    public async Task<Result<bool>> Handle(UpdateLeadStatusCommand cmd, CancellationToken ct)
+    {
+        if (!await ListPendingProvidersHandler.IsAdminAsync(users, config, cmd.AdminUserId, ct))
+            return Result<bool>.Fail("Forbidden");
+
+        await leads.UpdateStatusAsync(cmd.LeadId, cmd.Status, ct);
+        return Result<bool>.Ok(true);
+    }
+}
+
 // ---- Admin: manage live/reviewed providers ----
 public record ListManagedProvidersQuery(Guid AdminUserId) : IRequest<Result<IReadOnlyList<ManagedProviderDto>>>;
 

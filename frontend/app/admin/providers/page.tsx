@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Trash2, Mail, Phone, MessageCircle, MapPin, Pencil, X, Eye, EyeOff } from "lucide-react";
+import { Check, Trash2, Mail, Phone, MessageCircle, MapPin, Pencil, X, Eye, EyeOff, ThumbsUp } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
-import { loc, type LeadsOverview, type ManagedProvider, type PendingProvider } from "@/lib/types";
+import { LEAD_STATUS_KEYS, loc, type LeadsOverview, type ManagedProvider, type PendingProvider, type RecentLead } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -199,6 +199,11 @@ export default function AdminProvidersPage() {
     const [data, setData] = useState<LeadsOverview | null>(null);
     useEffect(() => { api.adminLeads().then(setData).catch(() => setData({ summary: [], recent: [] })); }, []);
 
+    const setStatus = async (lead: RecentLead, status: number) => {
+      setData((d) => d && { ...d, recent: d.recent.map((r) => (r.id === lead.id ? { ...r, status } : r)) });
+      try { await api.adminUpdateLeadStatus(lead.id, status); } catch { /* best-effort UI update */ }
+    };
+
     if (data === null) return <p className="text-gray-500">{t("common.loading")}</p>;
     if (data.summary.length === 0) return <p className="text-gray-500 dark:text-gray-400">{t("leads.none")}</p>;
 
@@ -215,6 +220,9 @@ export default function AdminProvidersPage() {
                     <th className="py-1 text-start font-medium">{t("leads.provider")}</th>
                     <th className="py-1 text-end font-medium">{t("leads.thisMonth")}</th>
                     <th className="py-1 text-end font-medium">{t("leads.invoiceMonth")}</th>
+                    <th className="py-1 text-end font-medium">{t("leads.converted")}</th>
+                    <th className="py-1 text-end font-medium">{t("leads.billable")}</th>
+                    <th className="py-1 text-end font-medium">{t("leads.helpfulRate")}</th>
                     <th className="py-1 text-end font-medium">{t("leads.total")}</th>
                   </tr>
                 </thead>
@@ -227,6 +235,9 @@ export default function AdminProvidersPage() {
                       </td>
                       <td className="py-2 text-end font-semibold text-brand">{s.monthCount}</td>
                       <td className="py-2 text-end font-semibold">₪{s.monthAmount}</td>
+                      <td className="py-2 text-end">{s.convertedMonthCount}</td>
+                      <td className="py-2 text-end font-semibold text-brand">₪{s.billableMonthAmount}</td>
+                      <td className="py-2 text-end">{s.helpfulRate == null ? "—" : `${Math.round(s.helpfulRate * 100)}%`}</td>
                       <td className="py-2 text-end">{s.totalCount}</td>
                     </tr>
                   ))}
@@ -241,15 +252,26 @@ export default function AdminProvidersPage() {
           <CardContent className="py-4">
             <h2 className="mb-3 font-semibold">{t("leads.recent")}</h2>
             <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-              {data.recent.map((r, i) => (
-                <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+              {data.recent.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                   <span className="font-medium">
                     {r.displayName}
                     {r.ref && <span className="ms-2 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">#{r.ref}</span>}
+                    {r.helpful != null && (
+                      <ThumbsUp className={`ms-2 inline h-4 w-4 align-text-bottom ${r.helpful ? "text-brand" : "rotate-180 text-gray-400"}`} />
+                    )}
                   </span>
-                  <span className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                  <span className="flex flex-wrap items-center gap-2 text-gray-500 dark:text-gray-400">
                     <CategoryBadge category={r.category} t={t} />
                     <span>{t(URGENCY_KEYS[r.urgency] ?? "urg.low")}</span>
+                    <select
+                      aria-label={t("leads.status")}
+                      value={r.status}
+                      onChange={(e) => setStatus(r, Number(e.target.value))}
+                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                    >
+                      {LEAD_STATUS_KEYS.map((k, i) => <option key={k} value={i}>{t(k)}</option>)}
+                    </select>
                     <span>{new Date(r.createdAt).toLocaleString()}</span>
                   </span>
                 </li>

@@ -35,4 +35,13 @@ public class ReferralsController(IMediator mediator) : ControllerBase
         var result = await mediator.Send(new LogLeadCommand(providerId, category, urgency, body?.DocumentId, body?.Ref));
         return result.Success ? Ok(new { ok = true }) : NotFound(new { error = result.Error });
     }
+
+    /// <summary>Post-contact "did this help?" signal, keyed by the lead's Ref code shown to the
+    /// user. No auth — the trial/anonymous flow logs leads too.</summary>
+    [HttpPost("feedback/{refCode}")]
+    public async Task<IActionResult> SubmitFeedback(string refCode, [FromBody] LeadFeedbackRequest body)
+    {
+        var result = await mediator.Send(new SubmitLeadFeedbackCommand(refCode, body.Helpful));
+        return result.Success ? Ok(new { ok = true }) : NotFound(new { error = result.Error });
+    }
 }

@@ -166,13 +166,29 @@ export interface LeadSummary {
   pricePerLead: number;
   monthAmount: number;
   totalAmount: number;
+  // Billing integrity: counts/amounts restricted to Converted-status leads.
+  convertedMonthCount: number;
+  convertedTotalCount: number;
+  billableMonthAmount: number;
+  billableTotalAmount: number;
+  // Share of rated leads the user said helped (null until anything is rated).
+  helpfulRate: number | null;
 }
+
+// A lead's lifecycle status (LeadStatus backend enum, as an int on the wire).
+export const LEAD_STATUS_KEYS = [
+  "leadStatus.new", "leadStatus.contacted", "leadStatus.responded", "leadStatus.converted", "leadStatus.invalid",
+] as const;
+
 export interface RecentLead {
+  id: string;
   providerId: string;
   displayName: string;
   category: number;
   urgency: number;
   ref: string | null;
+  status: number;
+  helpful: boolean | null;
   createdAt: string;
 }
 export interface LeadsOverview {

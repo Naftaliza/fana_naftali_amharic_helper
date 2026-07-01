@@ -52,5 +52,13 @@ public class Lead
     /// admin Leads tab — lets the provider quote it so you can match/confirm the lead.</summary>
     public string? Ref { get; set; }
 
+    /// <summary>Lifecycle status, editable by admin — billing can key off Converted instead of
+    /// the raw contact tap.</summary>
+    public LeadStatus Status { get; set; } = LeadStatus.New;
+
+    /// <summary>Whether the user reported the provider actually helped, set via the anonymous
+    /// post-contact feedback prompt (keyed by <see cref="Ref"/>). Null until rated.</summary>
+    public bool? Helpful { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

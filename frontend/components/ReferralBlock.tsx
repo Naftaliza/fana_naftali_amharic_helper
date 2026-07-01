@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { HandHelping, MessageCircle, Phone } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/api";
+import { setPendingFeedback } from "@/lib/leadFeedback";
 import { isRtl, loc, URGENCY_ENUM, type AnalysisResult, type Provider } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -53,8 +54,17 @@ export function ReferralBlock({
     const ref = (Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 4)).toUpperCase();
     // Log the lead (best-effort), then open the user's preferred channel.
     api.logLead(p.id, { category: category!, urgency, documentId, ref }).catch(() => {});
+    // Remember the contact so LeadFeedbackPrompt can ask "did they help?" when the user returns.
+    setPendingFeedback({ ref, providerName: p.displayName, contactedAt: Date.now() });
     if (p.whatsApp) {
-      const text = encodeURIComponent(t("referral.waMessage").replace("{ref}", ref));
+      // The wa.me prefill preview renders in a container with a fixed LTR base direction, so a
+      // lone directional mark isn't enough to fix word order (it only affects heuristics, not an
+      // explicit CSS/paragraph direction override). Wrap the whole message in an RTL ISOLATE —
+      // real bidi control characters, honored regardless of the container's base direction — so
+      // the Hebrew sentence (and the small embedded LTR ref code within it) renders as one
+      // correctly-ordered right-to-left unit.
+      const message = t("referral.waMessage").replace("{ref}", ref);
+      const text = encodeURIComponent(isRtl(language) ? `⁧${message}⁩` : message);
       window.open(`https://wa.me/${p.whatsApp}?text=${text}`, "_blank", "noopener");
     } else if (p.phone) {
       window.location.href = `tel:${p.phone}`;

@@ -51,13 +51,26 @@ public record ManagedProviderDto(
     int Priority,
     decimal PricePerLead);
 
-/// <summary>Lead counts and invoice amounts for one provider (this month + all time).</summary>
+/// <summary>Lead counts and invoice amounts for one provider (this month + all time).
+/// MonthAmount/TotalAmount bill every contact tap; BillableMonthAmount/BillableTotalAmount only
+/// bill leads marked Converted. HelpfulRate is the share of rated leads the user said helped
+/// (null when nothing has been rated yet).</summary>
 public record LeadSummaryDto(
     Guid ProviderId, string DisplayName, int MonthCount, int TotalCount,
-    decimal PricePerLead, decimal MonthAmount, decimal TotalAmount);
+    decimal PricePerLead, decimal MonthAmount, decimal TotalAmount,
+    int ConvertedMonthCount, int ConvertedTotalCount, decimal BillableMonthAmount, decimal BillableTotalAmount,
+    double? HelpfulRate);
 
 /// <summary>A single logged lead (a user→provider contact).</summary>
-public record RecentLeadDto(Guid ProviderId, string DisplayName, int Category, int Urgency, string? Ref, DateTime CreatedAt);
+public record RecentLeadDto(
+    Guid Id, Guid ProviderId, string DisplayName, int Category, int Urgency, string? Ref,
+    int Status, bool? Helpful, DateTime CreatedAt);
+
+/// <summary>Admin edit of a lead's lifecycle status.</summary>
+public record UpdateLeadStatusRequest(int Status);
+
+/// <summary>Anonymous post-contact "did this help?" signal, keyed by the lead's Ref code.</summary>
+public record LeadFeedbackRequest(bool Helpful);
 
 /// <summary>The admin leads view: per-provider counts plus the most recent leads.</summary>
 public record LeadsOverviewDto(IReadOnlyList<LeadSummaryDto> Summary, IReadOnlyList<RecentLeadDto> Recent);

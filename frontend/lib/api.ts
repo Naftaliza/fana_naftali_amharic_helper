@@ -169,6 +169,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  submitLeadFeedback: (ref: string, helpful: boolean) =>
+    request<{ ok: boolean }>(`/api/referrals/feedback/${ref}`, {
+      method: "POST",
+      body: JSON.stringify({ helpful }),
+    }),
 
   // --- Business self-registration (public) ---
   applyAsProvider: (body: ProviderApplication) =>
@@ -188,6 +193,11 @@ export const api = {
   adminSetActive: (id: string, value: boolean) =>
     request<{ ok: boolean }>(`/api/admin/providers/${id}/active?value=${value}`, { method: "POST" }),
   adminLeads: () => request<LeadsOverview>("/api/admin/leads"),
+  adminUpdateLeadStatus: (id: string, status: number) =>
+    request<{ ok: boolean }>(`/api/admin/leads/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
 
   // --- Chat ---
   chatHistory: (id: string) => request<ChatMessage[]>(`/api/documents/${id}/chat`),

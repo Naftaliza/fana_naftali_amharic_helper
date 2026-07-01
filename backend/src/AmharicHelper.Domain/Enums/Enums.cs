@@ -35,3 +35,14 @@ public enum ChatRole
     User = 0,
     Assistant = 1
 }
+
+/// <summary>Where a lead stands in its lifecycle. Lets billing be based on real conversions
+/// rather than a raw contact tap.</summary>
+public enum LeadStatus
+{
+    New = 0,
+    Contacted = 1,
+    Responded = 2,
+    Converted = 3,
+    Invalid = 4
+}

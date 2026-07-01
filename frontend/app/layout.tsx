@@ -8,6 +8,8 @@ import { Navbar } from "@/components/Navbar";
 import { SkipLink } from "@/components/SkipLink";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import { AccessibilityWidget } from "@/components/AccessibilityWidget";
+import { Onboarding } from "@/components/Onboarding";
+import { LeadFeedbackPrompt } from "@/components/LeadFeedbackPrompt";
 
 // Runs before paint to set the theme + accessibility options, avoiding any flash.
 const themeScript = `(function(){try{var d=document.documentElement;
@@ -53,6 +55,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Navbar />
               <main id="main" className="mx-auto max-w-6xl px-4 py-8">{children}</main>
               <AccessibilityWidget />
+              <Onboarding />
+              <LeadFeedbackPrompt />
               <ServiceWorker />
             </AuthProvider>
           </LanguageProvider>

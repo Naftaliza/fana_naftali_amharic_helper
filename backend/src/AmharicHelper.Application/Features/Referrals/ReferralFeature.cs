@@ -47,3 +47,17 @@ public class LogLeadHandler(IProviderRepository providers, ILeadRepository leads
         return Result<bool>.Ok(true);
     }
 }
+
+/// <summary>Anonymous post-contact "did this help?" signal, keyed by the lead's Ref code
+/// (the same code shown to the user and prefilled into the WhatsApp message).</summary>
+public record SubmitLeadFeedbackCommand(string Ref, bool Helpful) : IRequest<Result<bool>>;
+
+public class SubmitLeadFeedbackHandler(ILeadRepository leads)
+    : IRequestHandler<SubmitLeadFeedbackCommand, Result<bool>>
+{
+    public async Task<Result<bool>> Handle(SubmitLeadFeedbackCommand cmd, CancellationToken ct)
+    {
+        var found = await leads.SetFeedbackAsync(cmd.Ref, cmd.Helpful, ct);
+        return found ? Result<bool>.Ok(true) : Result<bool>.Fail("Lead not found.");
+    }
+}
