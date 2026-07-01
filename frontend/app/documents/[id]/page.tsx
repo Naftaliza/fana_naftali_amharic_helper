@@ -9,6 +9,7 @@ import { useLanguage } from "@/lib/language-context";
 import type { DocumentDetail } from "@/lib/types";
 import { AnalysisCard } from "@/components/AnalysisCard";
 import { AnalyzingState } from "@/components/AnalyzingState";
+import { ShareButton } from "@/components/ShareButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -59,9 +60,12 @@ export default function DocumentDetailPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">{doc.fileName}</h1>
         {doc.analysis && (
-          <Link href={`/documents/${id}/chat`}>
-            <Button variant="outline"><MessageCircle className="h-5 w-5" />{t("doc.chat")}</Button>
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link href={`/documents/${id}/chat`}>
+              <Button variant="outline"><MessageCircle className="h-5 w-5" />{t("doc.chat")}</Button>
+            </Link>
+            <ShareButton />
+          </div>
         )}
       </div>
 

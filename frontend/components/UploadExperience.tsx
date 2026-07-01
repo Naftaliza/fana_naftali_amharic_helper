@@ -12,6 +12,7 @@ import type { AnalysisResult } from "@/lib/types";
 import { AnalysisCard } from "@/components/AnalysisCard";
 import { AnalyzingState } from "@/components/AnalyzingState";
 import { CameraCapture } from "@/components/CameraCapture";
+import { ShareButton } from "@/components/ShareButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -98,6 +99,7 @@ export function UploadExperience() {
               >
                 {t("trial.tryAnother")}
               </Button>
+              <ShareButton />
             </div>
           </CardContent>
         </Card>
