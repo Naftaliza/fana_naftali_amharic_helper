@@ -13,8 +13,10 @@ can help with that document.
 > for OCR (vision) and analysis, **Azure Neural TTS** for spoken explanations
 > (incl. native Amharic voices). Every analysis field is generated in Hebrew,
 > Amharic, and English so the UI and audio stay in one chosen language. A
-> sponsored-referral marketplace (vetted providers, lead tracking, partner
-> self-registration, and an admin review console) is built in.
+> sponsored-referral marketplace (vetted providers, lead lifecycle status +
+> post-contact satisfaction feedback for billing integrity, partner
+> self-registration, and an admin review console) is built in, alongside a
+> first-run onboarding walkthrough and a one-tap "Share Fana" growth loop.
 
 ## Tech stack
 
@@ -23,7 +25,7 @@ can help with that document.
 | Backend   | ASP.NET Core 9 Web API · Clean Architecture · CQRS (MediatR) · Repository pattern · Dapper |
 | Database  | PostgreSQL (via Npgsql); Railway-managed in production, Docker locally |
 | Auth      | JWT access + refresh tokens, PBKDF2 password hashing; admins by `Admin:Emails` allowlist |
-| Referrals | Vetted providers matched per document category · per-lead tracking for billing · anonymous partner self-registration · admin approve/manage console |
+| Referrals | Vetted providers matched per document category · per-lead tracking with lifecycle status (New/Contacted/Responded/Converted/Invalid) for billing integrity · anonymous post-contact "was this helpful?" feedback → per-provider satisfaction rate · anonymous partner self-registration · admin approve/manage console |
 | AI        | `IAiProvider` → `ClaudeAiProvider` (default) / `OpenAiProvider`      |
 | OCR       | `IOcrProvider` → `ClaudeOcrProvider` (default) / Google Vision / Azure |
 | TTS       | `ITtsProvider` → `AzureTtsProvider` (default) / ElevenLabs · audio cached per (document, language) |
@@ -52,7 +54,8 @@ Fana 2.0/
    │                           #   documents/[id], documents/[id]/chat, profile,
    │                           #   partners (self-registration), admin/providers
    ├─ components/               # Navbar, UploadExperience, CameraCapture, AnalysisCard,
-   │                           #   ReferralBlock, AccessibilityWidget, ServiceWorker, ui/
+   │                           #   ReferralBlock, LeadFeedbackPrompt, ShareButton, Onboarding,
+   │                           #   AccessibilityWidget, ServiceWorker, ui/
    ├─ lib/                      # api client, auth + language contexts, types
    └─ i18n/                     # he / am / en dictionaries
 ```
@@ -62,8 +65,9 @@ The backend Application layer is organized by feature (`Auth`, `Documents`,
 
 ### Database schema
 `Users`, `RefreshTokens`, `Documents`, `DocumentAnalyses`, `ChatMessages`,
-`TtsAudioCache`, `Providers`, `Leads` (see
-`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`009`).
+`TtsAudioCache`, `Providers`, `Leads` (with `Status` and `Helpful` columns for
+lead lifecycle + post-contact feedback) (see
+`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`011`).
 Migrations are idempotent PostgreSQL and run on API startup. Analysis text
 columns store JSON localized to `{ he, am, en }`.
 
@@ -76,9 +80,10 @@ columns store JSON localized to `{ he, am, en }`.
 - `GET|POST /api/documents/{id}/chat`
 - `POST /api/trial/analyze`, `POST /api/trial/speech` (anonymous trial, nothing saved)
 - `GET  /api/referrals?category=` (matched providers), `POST /api/referrals/{providerId}/lead` (log a contact) — anonymous, rate-limited
+- `POST /api/referrals/feedback/{refCode}` (post-contact "did this help?" signal) — anonymous, rate-limited
 - `POST /api/partners/apply` (business self-registration, anonymous, rate-limited)
 - `GET|PUT|POST|DELETE /api/admin/providers...` (review/manage providers — admin only)
-- `GET  /api/admin/leads` (lead overview — admin only)
+- `GET  /api/admin/leads` (lead overview — admin only), `PUT /api/admin/leads/{id}/status` (update lead lifecycle status — admin only)
 - `GET /health`
 
 ## Local development
