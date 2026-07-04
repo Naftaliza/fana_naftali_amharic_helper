@@ -21,3 +21,4 @@ npm-debug.log*
 .vscode/
 .idea/
 .DS_Store
+Fana.code-workspace
