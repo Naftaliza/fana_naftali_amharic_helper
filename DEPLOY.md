@@ -45,7 +45,7 @@ Project contains two services in the `production` environment.
   | `Jwt__Audience` | `AmharicHelperClient` |
   | `Ai__Provider` | `Claude` |
   | `Ai__AnthropicApiKey` | (Anthropic key) |
-  | `Ai__AnthropicModel` | `claude-sonnet-4-6` |
+  | `Ai__AnthropicModel` | `claude-sonnet-5` |
   | `Ocr__Provider` | `Claude` |
   | `Tts__Provider` | `Azure` |
   | `Tts__AzureSpeechKey` | (Azure Speech key) |

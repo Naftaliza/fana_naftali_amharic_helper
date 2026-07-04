@@ -6,7 +6,7 @@ public class AiOptions
     /// <summary>"Claude" (default) or "OpenAI".</summary>
     public string Provider { get; set; } = "Claude";
     public string? AnthropicApiKey { get; set; }
-    public string AnthropicModel { get; set; } = "claude-sonnet-4-6";
+    public string AnthropicModel { get; set; } = "claude-sonnet-5";
     public string? OpenAiApiKey { get; set; }
     public string OpenAiModel { get; set; } = "gpt-4o";
 }
