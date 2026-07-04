@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text;
 using System.Threading.RateLimiting;
 using AmharicHelper.Api.Middleware;
@@ -6,6 +7,7 @@ using AmharicHelper.Infrastructure;
 using AmharicHelper.Infrastructure.Persistence;
 using AmharicHelper.Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -16,6 +18,25 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Brotli/gzip response compression — cuts payload size (and time-to-first-byte on
+// slower links) for JSON responses. Safe over HTTPS since responses aren't secret-length-
+// sensitive (no compression-oracle risk like BREACH targets reflected secrets in JSON APIs).
+builder.Services.AddResponseCompression(o =>
+{
+    o.EnableForHttps = true;
+    o.Providers.Add<BrotliCompressionProvider>();
+    o.Providers.Add<GzipCompressionProvider>();
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+
+// Output caching for cheap, cacheable public reads (tenant branding lookups) so repeat
+// page loads for the same org don't round-trip to Postgres on every request.
+builder.Services.AddOutputCache(o =>
+{
+    o.AddPolicy("org-branding", p => p.Cache().Expire(TimeSpan.FromMinutes(2)).SetVaryByRouteValue("slug"));
+});
 builder.Services.AddSwaggerGen(o =>
 {
     o.SwaggerDoc("v1", new OpenApiInfo { Title = "Amharic Helper API", Version = "v1" });
@@ -105,10 +126,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseResponseCompression();
 app.UseCors(CorsPolicy);
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseOutputCache();
 
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
