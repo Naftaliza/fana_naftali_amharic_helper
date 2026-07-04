@@ -128,6 +128,8 @@ columns store JSON localized to `{ he, am, en }`.
 ```bash
 cd "Fana 2.0"
 export ANTHROPIC_API_KEY=sk-ant-...     # required for real OCR + analysis
+export SENDGRID_API_KEY=SG....          # required for real invoice/password-reset emails
+export SENDGRID_FROM_EMAIL=you@yourdomain.com  # must be verified in SendGrid (Settings -> Sender Authentication)
 docker compose up --build
 ```
 - API: http://localhost:5080 (Swagger at `/swagger`)
@@ -178,7 +180,7 @@ variables (double-underscore syntax, e.g. `Ai__Provider`):
 | `Tts__Provider`           | `Azure` or `ElevenLabs`                            | `Azure`       |
 | `Tts__AzureSpeechKey` / `Tts__AzureRegion` | Azure Speech credentials          | empty         |
 | `Admin__Emails`           | CSV of emails granted admin access (provider/lead consoles) | empty |
-| `Email__Smtp__Host` / `Port` / `Username` / `Password` / `From` | SMTP credentials (MailKit) used to email generated invoice PDFs to providers | empty |
+| `Email__Smtp__Host` / `Port` / `Username` / `Password` / `From` | SMTP credentials (MailKit) used to email generated invoice PDFs and password-reset links; via `SENDGRID_API_KEY` / `SENDGRID_FROM_EMAIL` in Docker, host is `smtp.sendgrid.net`, username is the literal `apikey` | empty |
 | `Company__SupportEmail`   | "Questions about this invoice?" contact shown on invoice PDFs; falls back to the first `Admin:Emails` entry if unset | empty |
 
 ## Deployment

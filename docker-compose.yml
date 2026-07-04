@@ -36,6 +36,11 @@ services:
       # Must match the email of a registered Fana account.
       Admin__Emails: "${ADMIN_EMAILS:-}"
       Frontend__Origin: "http://localhost:3001"
+      Email__Smtp__Host: "smtp.sendgrid.net"
+      Email__Smtp__Port: "587"
+      Email__Smtp__Username: "apikey"
+      Email__Smtp__Password: "${SENDGRID_API_KEY:-}"
+      Email__Smtp__From: "${SENDGRID_FROM_EMAIL:-}"
     ports:
       - "5080:8080"
 

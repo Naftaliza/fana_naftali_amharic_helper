@@ -52,6 +52,11 @@ Project contains two services in the `production` environment.
   | `Tts__AzureRegion` | `westus2` |
   | `ASPNETCORE_ENVIRONMENT` | `Production` |
   | `Frontend__Origin` | Netlify URL(s), comma-separated (see below) |
+  | `Email__Smtp__Host` | `smtp.sendgrid.net` |
+  | `Email__Smtp__Port` | `587` |
+  | `Email__Smtp__Username` | `apikey` (literal string — SendGrid's SMTP relay always uses this) |
+  | `Email__Smtp__Password` | (SendGrid API key) |
+  | `Email__Smtp__From` | a sender verified in SendGrid (Settings → Sender Authentication) |
 
 - The API auto-redeploys when `fana_mvp` is pushed to GitHub.
 - Migrations run on startup ([DatabaseMigrator.cs](backend/src/AmharicHelper.Infrastructure/Persistence/DatabaseMigrator.cs)) and create the DB + tables.
