@@ -8,7 +8,9 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, displayName: string, preferredLanguage: number) => Promise<void>;
+  register: (
+    email: string, password: string, displayName: string, preferredLanguage: number, organizationSlug?: string | null
+  ) => Promise<void>;
   logout: () => void;
 }
 
@@ -33,8 +35,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api.me().catch(() => res.user));
   };
 
-  const register = async (email: string, password: string, displayName: string, preferredLanguage: number) => {
-    const res = await api.register({ email, password, displayName, preferredLanguage });
+  const register = async (
+    email: string, password: string, displayName: string, preferredLanguage: number, organizationSlug?: string | null
+  ) => {
+    const res = await api.register({ email, password, displayName, preferredLanguage, organizationSlug });
     tokenStore.set(res.accessToken, res.refreshToken);
     setUser(await api.me().catch(() => res.user));
   };

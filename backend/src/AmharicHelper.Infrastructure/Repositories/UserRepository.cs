@@ -26,8 +26,8 @@ public class UserRepository(ISqlConnectionFactory factory) : IUserRepository
         using var conn = factory.Create();
         await conn.ExecuteAsync(
             """
-            INSERT INTO Users (Id, Email, PasswordHash, DisplayName, PreferredLanguage, CreatedAt)
-            VALUES (@Id, @Email, @PasswordHash, @DisplayName, @PreferredLanguage, @CreatedAt)
+            INSERT INTO Users (Id, Email, PasswordHash, DisplayName, PreferredLanguage, CreatedAt, OrganizationId)
+            VALUES (@Id, @Email, @PasswordHash, @DisplayName, @PreferredLanguage, @CreatedAt, @OrganizationId)
             """, user);
     }
 

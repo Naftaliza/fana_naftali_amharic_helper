@@ -88,6 +88,10 @@ public interface ILeadRepository
     /// <summary>Record the anonymous post-contact "did this help?" signal for the lead matching
     /// this ref code. Returns false if no lead has that ref.</summary>
     Task<bool> SetFeedbackAsync(string refCode, bool helpful, CancellationToken ct = default);
+
+    /// <summary>Converted leads for one provider within a calendar month — the exact rows an
+    /// invoice snapshots as line items. Ordered by CreatedAt.</summary>
+    Task<IReadOnlyList<Lead>> GetConvertedForPeriodAsync(Guid providerId, int year, int month, CancellationToken ct = default);
 }
 
 public interface IChatMessageRepository
@@ -95,4 +99,44 @@ public interface IChatMessageRepository
     Task<IReadOnlyList<ChatMessage>> ListByDocumentAsync(Guid documentId, CancellationToken ct = default);
     Task AddAsync(ChatMessage message, CancellationToken ct = default);
     Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken ct = default);
+}
+
+/// <summary>B2B/B2G tenants (see <see cref="Organization"/>) and their aggregate usage.</summary>
+public interface IOrganizationRepository
+{
+    Task<Organization?> GetBySlugAsync(string slug, CancellationToken ct = default);
+    Task<Organization?> GetByIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>All tenants, newest first.</summary>
+    Task<IReadOnlyList<Organization>> ListAsync(CancellationToken ct = default);
+
+    Task AddAsync(Organization organization, CancellationToken ct = default);
+
+    /// <summary>Update a tenant's editable branding fields (not Slug, not IsActive).</summary>
+    Task UpdateAsync(Organization organization, CancellationToken ct = default);
+
+    /// <summary>Activate or deactivate a tenant — gates the public branding lookup.</summary>
+    Task SetActiveAsync(Guid id, bool active, CancellationToken ct = default);
+
+    /// <summary>Aggregate, anonymized usage for one tenant — documents processed, unique
+    /// members, and the category/urgency/weekly breakdowns behind the admin dashboard.</summary>
+    Task<OrganizationStatsDto> GetStatsAsync(Guid organizationId, CancellationToken ct = default);
+}
+
+/// <summary>Persisted, immutable invoice snapshots for provider billing (see <see cref="Invoice"/>).</summary>
+public interface IInvoiceRepository
+{
+    /// <summary>Null if no invoice exists yet for this provider+month (the idempotency check).</summary>
+    Task<Invoice?> GetByProviderAndPeriodAsync(Guid providerId, int year, int month, CancellationToken ct = default);
+
+    Task<Invoice?> GetByIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>All invoices for one provider, newest period first.</summary>
+    Task<IReadOnlyList<Invoice>> ListByProviderAsync(Guid providerId, CancellationToken ct = default);
+
+    Task AddAsync(Invoice invoice, CancellationToken ct = default);
+
+    Task MarkSentAsync(Guid id, DateTime sentAt, CancellationToken ct = default);
+
+    Task MarkFailedAsync(Guid id, string error, CancellationToken ct = default);
 }

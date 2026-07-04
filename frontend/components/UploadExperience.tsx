@@ -7,8 +7,9 @@ import { Camera, Lock } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
+import { useOrganization } from "@/lib/organization-context";
 import { incrementTrial, trialRemaining, TRIAL_LIMIT } from "@/lib/trial";
-import type { AnalysisResult } from "@/lib/types";
+import { loc, type AnalysisResult } from "@/lib/types";
 import { AnalysisCard } from "@/components/AnalysisCard";
 import { AnalyzingState } from "@/components/AnalyzingState";
 import { CameraCapture } from "@/components/CameraCapture";
@@ -23,8 +24,9 @@ const ACCEPT = "image/*,application/pdf,.pdf,.jpg,.jpeg,.png";
  * and at /upload. Handles both the anonymous free-trial flow and the logged-in flow.
  */
 export function UploadExperience() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user, loading: authLoading } = useAuth();
+  const { organization } = useOrganization();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -109,12 +111,27 @@ export function UploadExperience() {
 
   return (
     <div className="mx-auto flex max-w-xl animate-fade-in-up flex-col items-center gap-6 pt-6 text-center">
-      <h1 className="bg-brand-gradient bg-clip-text text-4xl font-bold leading-tight text-transparent">{t("landing.headline")}</h1>
-      <p className="text-lg text-gray-600 dark:text-gray-400">{t("landing.subheadline")}</p>
+      {organization ? (
+        // Tenant-branded landing: the institution's own welcome message leads.
+        <h1
+          className="bg-clip-text text-4xl font-bold leading-tight text-transparent"
+          style={{ backgroundImage: "linear-gradient(135deg, var(--org-primary), var(--org-accent))" }}
+        >
+          {loc(organization.welcomeText, language)}
+        </h1>
+      ) : (
+        <>
+          <h1 className="bg-brand-gradient bg-clip-text text-4xl font-bold leading-tight text-transparent">{t("landing.headline")}</h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400">{t("landing.subheadline")}</p>
+        </>
+      )}
 
       <button
         onClick={() => setCameraOpen(true)}
         className="mt-2 flex w-full flex-col items-center justify-center gap-4 rounded-3xl bg-brand-gradient px-8 py-14 text-white shadow-soft transition-transform hover:scale-[1.02] active:scale-100"
+        // Inline style wins over the bg-brand-gradient class regardless of source order,
+        // so a tenant visitor sees their own colors without touching the default class.
+        style={organization ? { background: "linear-gradient(135deg, var(--org-primary), var(--org-accent))" } : undefined}
       >
         <Camera className="h-20 w-20" />
         <span className="text-2xl font-bold">{t("upload.takePhoto")}</span>

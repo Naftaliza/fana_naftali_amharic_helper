@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
+import { getPersistedOrgSlug, useOrganization } from "@/lib/organization-context";
 import { LANGUAGE_ENUM } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export default function RegisterPage() {
   const { t, language } = useLanguage();
   const { register } = useAuth();
+  const { organization } = useOrganization();
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -25,7 +27,9 @@ export default function RegisterPage() {
     setBusy(true);
     setError(null);
     try {
-      await register(email, password, name, LANGUAGE_ENUM[language]);
+      // Fall back to the persisted slug directly: a fast submit can beat the branding
+      // fetch that populates `organization`, and the slug is known synchronously either way.
+      await register(email, password, name, LANGUAGE_ENUM[language], organization?.slug ?? getPersistedOrgSlug());
       router.push("/dashboard");
     } catch (err) {
       setError((err as Error).message);
@@ -38,7 +42,9 @@ export default function RegisterPage() {
     <div className="mx-auto max-w-md pt-10">
       <h1 className="sr-only">{t("auth.registerTitle")}</h1>
       <Card>
-        <CardHeader><CardTitle>{t("auth.registerTitle")}</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>{organization ? `${t("auth.registerTitle")} — ${organization.name}` : t("auth.registerTitle")}</CardTitle>
+        </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
             <Input aria-label={t("auth.name")} autoComplete="name" placeholder={t("auth.name")} value={name} onChange={(e) => setName(e.target.value)} required />

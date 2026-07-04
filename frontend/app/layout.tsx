@@ -3,6 +3,7 @@ import { Noto_Sans_Hebrew, Noto_Sans_Ethiopic } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/language-context";
 import { AuthProvider } from "@/lib/auth-context";
+import { OrganizationProvider } from "@/lib/organization-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { Navbar } from "@/components/Navbar";
 import { SkipLink } from "@/components/SkipLink";
@@ -51,13 +52,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <LanguageProvider>
             <AuthProvider>
-              <SkipLink />
-              <Navbar />
-              <main id="main" className="mx-auto max-w-6xl px-4 py-8">{children}</main>
-              <AccessibilityWidget />
-              <Onboarding />
-              <LeadFeedbackPrompt />
-              <ServiceWorker />
+              <OrganizationProvider>
+                <SkipLink />
+                <Navbar />
+                <main id="main" className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+                <AccessibilityWidget />
+                <Onboarding />
+                <LeadFeedbackPrompt />
+                <ServiceWorker />
+              </OrganizationProvider>
             </AuthProvider>
           </LanguageProvider>
         </ThemeProvider>

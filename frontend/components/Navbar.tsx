@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, ShieldCheck } from "lucide-react";
+import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, ShieldCheck, Building2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
+import { useOrganization } from "@/lib/organization-context";
 import { useTheme } from "@/lib/theme-context";
 import { LANGUAGES } from "@/lib/types";
 
@@ -29,6 +30,7 @@ export function Navbar() {
   const { t, language, setLanguage } = useLanguage();
   const { theme, toggle } = useTheme();
   const { user, logout } = useAuth();
+  const { organization } = useOrganization();
   const [open, setOpen] = useState(false);       // hamburger menu
   const [langOpen, setLangOpen] = useState(false); // language popover
   const menuRef = useRef<HTMLDivElement>(null);
@@ -63,10 +65,30 @@ export function Navbar() {
     <header className="pt-safe sticky top-0 z-40 border-b border-gray-100 bg-white/85 backdrop-blur dark:border-gray-800 dark:bg-gray-900/85">
       <nav aria-label={t("app.name")} className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 text-lg font-bold text-brand">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-gradient text-white" aria-hidden="true">
-            <FileText className="h-5 w-5" />
-          </span>
-          <span>{t("app.name")}</span>
+          {organization ? (
+            // Tenant-branded: the institution's own identity leads, with a small
+            // "powered by" mark — the engine underneath stays Fana's, not the tenant's.
+            <>
+              <span
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-extrabold text-white"
+                style={{ background: "linear-gradient(135deg, var(--org-primary), var(--org-accent))" }}
+                aria-hidden="true"
+              >
+                {organization.name.trim().charAt(0)}
+              </span>
+              <span className="flex flex-col leading-tight">
+                <span className="text-base">{organization.name}</span>
+                <span className="text-[10px] font-normal text-gray-400 dark:text-gray-500">{t("org.poweredBy")}</span>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-gradient text-white" aria-hidden="true">
+                <FileText className="h-5 w-5" />
+              </span>
+              <span>{t("app.name")}</span>
+            </>
+          )}
         </Link>
 
         <div className="flex items-center gap-2">
@@ -170,6 +192,11 @@ export function Navbar() {
                 {user?.isAdmin && (
                   <Link href="/admin/providers" className={itemClass}>
                     <ShieldCheck className="h-5 w-5 text-brand" />{t("nav.providerReview")}
+                  </Link>
+                )}
+                {user?.isAdmin && (
+                  <Link href="/admin/organizations" className={itemClass}>
+                    <Building2 className="h-5 w-5 text-brand" />{t("nav.organizations")}
                   </Link>
                 )}
 
