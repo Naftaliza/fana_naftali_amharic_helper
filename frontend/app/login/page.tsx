@@ -44,6 +44,9 @@ export default function LoginPage() {
             {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
             <Button type="submit" className="w-full" disabled={busy}>{busy ? t("common.loading") : t("nav.login")}</Button>
           </form>
+          <p className="mt-3 text-center text-sm">
+            <Link href="/forgot-password" className="text-brand hover:underline">{t("auth.forgotPassword")}</Link>
+          </p>
           <p className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
             <Link href="/register" className="text-brand hover:underline">{t("nav.register")}</Link>
           </p>

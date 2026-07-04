@@ -5,6 +5,7 @@ using AmharicHelper.Application.DTOs;
 using AmharicHelper.Domain.Entities;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace AmharicHelper.Application.Features.Auth;
@@ -24,6 +25,7 @@ public class RegisterValidator : AbstractValidator<RegisterCommand>
 
 public class RegisterHandler(
     IUserRepository users,
+    IOrganizationRepository organizations,
     IPasswordHasher hasher,
     IJwtService jwt,
     IRefreshTokenRepository refreshTokens) : IRequestHandler<RegisterCommand, Result<AuthResponse>>
@@ -34,12 +36,22 @@ public class RegisterHandler(
         if (await users.GetByEmailAsync(req.Email, ct) is not null)
             return Result<AuthResponse>.Fail("Email already registered.");
 
+        // Registering through a tenant-branded front end tags the new user as that org's
+        // member. An unknown/inactive slug is silently ignored — never blocks sign-up.
+        Guid? organizationId = null;
+        if (!string.IsNullOrWhiteSpace(req.OrganizationSlug))
+        {
+            var org = await organizations.GetBySlugAsync(req.OrganizationSlug.Trim().ToLowerInvariant(), ct);
+            if (org is { IsActive: true }) organizationId = org.Id;
+        }
+
         var user = new User
         {
             Email = req.Email,
             DisplayName = req.DisplayName,
             PreferredLanguage = req.PreferredLanguage,
-            PasswordHash = hasher.Hash(req.Password)
+            PasswordHash = hasher.Hash(req.Password),
+            OrganizationId = organizationId
         };
         await users.AddAsync(user, ct);
 
@@ -88,12 +100,14 @@ public class RefreshHandler(
     }
 }
 
-// ---- Forgot / Reset password (stubbed: email delivery is a follow-up) ----
+// ---- Forgot / Reset password ----
 public record ForgotPasswordCommand(ForgotPasswordRequest Request) : IRequest<Result<bool>>;
 
 public class ForgotPasswordHandler(
     IUserRepository users,
     IPasswordHasher hasher,
+    IEmailSender emailSender,
+    IConfiguration config,
     ILogger<ForgotPasswordHandler> logger) : IRequestHandler<ForgotPasswordCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(ForgotPasswordCommand cmd, CancellationToken ct)
@@ -108,9 +122,25 @@ public class ForgotPasswordHandler(
             user.PasswordResetExpiresAt = DateTime.UtcNow.AddHours(1);
             await users.UpdateAsync(user, ct);
 
-            // TODO: email this token to the user as a reset link. Until email delivery is
-            // wired up it is logged so the flow can be exercised. Do NOT log it in production.
-            logger.LogInformation("Password reset token for {Email}: {Token}", user.Email, rawToken);
+            // Frontend:Origin already exists for CORS — reuse it rather than adding a new key.
+            var origin = (config["Frontend:Origin"] ?? "http://localhost:3001").Split(',')[0].Trim();
+            var link = $"{origin}/reset-password?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(rawToken)}";
+
+            try
+            {
+                await emailSender.SendAsync(new EmailMessage(
+                    user.Email,
+                    "Reset your Fana password",
+                    $"Hi {user.DisplayName}, click the link below to reset your password. " +
+                    $"This link expires in 1 hour and can only be used once.\n\n{link}\n\n" +
+                    "If you didn't request this, you can safely ignore this email."), ct);
+            }
+            catch (Exception ex)
+            {
+                // Never surface a send failure to the caller — same account-enumeration reason
+                // this method always returns Ok(true) below. Logged so it's still visible in ops.
+                logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
+            }
         }
 
         // Always report success so the endpoint can't be used to enumerate accounts.
