@@ -173,7 +173,28 @@ export interface LeadSummary {
   billableTotalAmount: number;
   // Share of rated leads the user said helped (null until anything is rated).
   helpfulRate: number | null;
+  // Needed to invoice this provider — null for admin-created providers that never self-registered.
+  contactEmail: string | null;
 }
+
+// A persisted, immutable invoice snapshot for one provider + calendar month.
+export interface Invoice {
+  id: string;
+  providerId: string;
+  invoiceNumber: string;
+  periodYear: number;
+  periodMonth: number;
+  currency: string;
+  totalAmount: number;
+  leadCount: number;
+  status: number; // 0=Draft, 1=Sent, 2=Failed
+  sentToEmail: string;
+  generatedAt: string;
+  sentAt: string | null;
+  sendError: string | null;
+}
+
+export const INVOICE_STATUS_KEYS = ["invoice.draft", "invoice.sent", "invoice.failed"] as const;
 
 // A lead's lifecycle status (LeadStatus backend enum, as an int on the wire).
 export const LEAD_STATUS_KEYS = [
@@ -194,6 +215,64 @@ export interface RecentLead {
 export interface LeadsOverview {
   summary: LeadSummary[];
   recent: RecentLead[];
+}
+
+// A B2B/B2G tenant's public branding, resolved by slug (drives a white-labeled front end).
+export interface OrganizationBranding {
+  slug: string;
+  name: string;
+  logoUrl: string | null;
+  primaryColorHex: string;
+  accentColorHex: string | null;
+  welcomeText: LocalizedText;
+}
+
+// A tenant row in the admin list. Includes branding so the usage dashboard can echo the
+// tenant's own identity without a second round trip.
+export interface OrganizationSummary {
+  id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  createdAt: string;
+  logoUrl: string | null;
+  primaryColorHex: string;
+  accentColorHex: string | null;
+  welcomeText: string;
+}
+
+// Admin: create a new tenant. welcomeText fills all three language slots on the server.
+export interface CreateOrganizationPayload {
+  name: string;
+  slug: string;
+  logoUrl?: string | null;
+  primaryColorHex: string;
+  accentColorHex?: string | null;
+  welcomeText: string;
+}
+
+// Admin: edit an existing tenant's branding. Slug is intentionally omitted — it's locked
+// after creation since it drives already-shared ?org=slug links.
+export interface UpdateOrganizationPayload {
+  name: string;
+  logoUrl?: string | null;
+  primaryColorHex: string;
+  accentColorHex?: string | null;
+  welcomeText: string;
+}
+
+export interface CategoryCount { category: number; count: number }
+export interface UrgencyCount { urgency: number; count: number }
+export interface WeeklyCount { weekStart: string; count: number }
+
+// Admin: one tenant's aggregate, anonymized usage — the renewal-justification dashboard.
+export interface OrganizationStats {
+  documentsProcessed: number;
+  uniqueUsers: number;
+  urgentCount: number;
+  byCategory: CategoryCount[];
+  byUrgency: UrgencyCount[];
+  weeklyTrend: WeeklyCount[];
 }
 
 // Admin edit payload (description fills all three blurb languages on the server).

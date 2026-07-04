@@ -4,13 +4,19 @@ import type {
   AnalysisResult,
   AuthUser,
   ChatMessage,
+  CreateOrganizationPayload,
   DocumentDetail,
   DocumentSummary,
+  Invoice,
   LeadsOverview,
   ManagedProvider,
+  OrganizationBranding,
+  OrganizationStats,
+  OrganizationSummary,
   PendingProvider,
   Provider,
   ProviderApplication,
+  UpdateOrganizationPayload,
   UpdateProvider,
   UploadDocumentResult,
 } from "@/lib/types";
@@ -100,12 +106,17 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
 
 export const api = {
   // --- Auth ---
-  register: (body: { email: string; password: string; displayName: string; preferredLanguage: number }) =>
-    request<AuthResponse>("/api/auth/register", { method: "POST", body: JSON.stringify(body) }),
+  register: (body: {
+    email: string; password: string; displayName: string; preferredLanguage: number; organizationSlug?: string | null;
+  }) => request<AuthResponse>("/api/auth/register", { method: "POST", body: JSON.stringify(body) }),
   login: (body: { email: string; password: string }) =>
     request<AuthResponse>("/api/auth/login", { method: "POST", body: JSON.stringify(body) }),
   forgotPassword: (email: string) =>
     request("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
+  resetPassword: (email: string, resetToken: string, newPassword: string) =>
+    request<{ message: string }>("/api/auth/reset-password", {
+      method: "POST", body: JSON.stringify({ email, resetToken, newPassword }),
+    }),
 
   // --- User ---
   me: () => request<AuthUser>("/api/users/me"),
@@ -198,6 +209,48 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ status }),
     }),
+
+  // --- Admin: provider invoicing (persisted + emailed PDF invoices) ---
+  // No invoice yet for this provider+month -> the API's Ok(null) is auto-converted to a
+  // 204 by ASP.NET Core, which request() surfaces as undefined, not null — callers should
+  // treat both as "no invoice" (e.g. `inv ?? null`).
+  adminInvoiceStatus: (providerId: string, year: number, month: number) =>
+    request<Invoice | null | undefined>(`/api/admin/providers/${providerId}/invoices/status?year=${year}&month=${month}`),
+  adminGenerateInvoice: (providerId: string, year: number, month: number) =>
+    request<Invoice>(`/api/admin/providers/${providerId}/invoices/generate`, {
+      method: "POST", body: JSON.stringify({ year, month }),
+    }),
+  // Invoice PDFs are behind [Authorize], so a plain <a href> can't fetch them (no way to attach
+  // the bearer token) — download as a blob with the same auth+refresh pattern as speech().
+  adminInvoicePdf: async (providerId: string, invoiceId: string): Promise<Blob> => {
+    const url = `${BASE}/api/admin/providers/${providerId}/invoices/${invoiceId}/pdf`;
+    const send = () => {
+      const headers = new Headers();
+      const token = tokenStore.access;
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      return fetch(url, { headers });
+    };
+    let res = await send();
+    if (res.status === 401 && (await refreshOnce())) res = await send();
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error ?? "Failed to fetch invoice PDF");
+    }
+    return res.blob();
+  },
+
+  // --- Organizations (B2B/B2G tenant branding — public, anonymous) ---
+  getOrganization: (slug: string) => request<OrganizationBranding>(`/api/organizations/${slug}`),
+
+  // --- Admin: B2B/B2G tenant management ---
+  adminListOrganizations: () => request<OrganizationSummary[]>("/api/admin/organizations"),
+  adminCreateOrganization: (body: CreateOrganizationPayload) =>
+    request<{ id: string }>("/api/admin/organizations", { method: "POST", body: JSON.stringify(body) }),
+  adminUpdateOrganization: (id: string, body: UpdateOrganizationPayload) =>
+    request<{ ok: boolean }>(`/api/admin/organizations/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  adminSetOrganizationStatus: (id: string, value: boolean) =>
+    request<{ ok: boolean }>(`/api/admin/organizations/${id}/active?value=${value}`, { method: "POST" }),
+  adminOrganizationStats: (id: string) => request<OrganizationStats>(`/api/admin/organizations/${id}/stats`),
 
   // --- Chat ---
   chatHistory: (id: string) => request<ChatMessage[]>(`/api/documents/${id}/chat`),
