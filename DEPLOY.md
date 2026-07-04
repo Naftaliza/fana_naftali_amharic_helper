@@ -52,11 +52,14 @@ Project contains two services in the `production` environment.
   | `Tts__AzureRegion` | `westus2` |
   | `ASPNETCORE_ENVIRONMENT` | `Production` |
   | `Frontend__Origin` | Netlify URL(s), comma-separated (see below) |
-  | `Email__Smtp__Host` | `smtp.sendgrid.net` |
-  | `Email__Smtp__Port` | `587` |
-  | `Email__Smtp__Username` | `apikey` (literal string — SendGrid's SMTP relay always uses this) |
-  | `Email__Smtp__Password` | (SendGrid API key) |
+  | `Email__Smtp__Password` | SendGrid API key — sent as a Bearer token to SendGrid's HTTPS `/mail/send` API, **not** used for SMTP auth on Railway (see note below) |
   | `Email__Smtp__From` | a sender verified in SendGrid (Settings → Sender Authentication) |
+
+  > **Why HTTPS, not SMTP**: Railway blocks outbound SMTP ports (25/465/587) on its network, so
+  > `Email__Smtp__Host/Port/Username` (used only by the SMTP fallback) don't apply here — the
+  > default `IEmailSender` (`SendGridApiEmailSender`) calls SendGrid's Web API over HTTPS (443)
+  > instead, which isn't blocked. Set `Email__Provider=Smtp` only if deploying somewhere that
+  > doesn't block those ports.
 
 - The API auto-redeploys when `fana_mvp` is pushed to GitHub.
 - Migrations run on startup ([DatabaseMigrator.cs](backend/src/AmharicHelper.Infrastructure/Persistence/DatabaseMigrator.cs)) and create the DB + tables.

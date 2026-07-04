@@ -38,9 +38,19 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
 
         // Provider invoicing: PDF generation (QuestPDF — Community license, revenue-capped; see
-        // README) and outbound email (MailKit/SMTP, configured via Email:Smtp).
+        // README) and outbound email, configured via Email:Smtp (reused for both senders below —
+        // Password/From apply to both; Host/Port/Username are Smtp-only).
         services.Configure<EmailOptions>(config.GetSection("Email:Smtp"));
-        services.AddScoped<IEmailSender, SmtpEmailSender>();
+        // Email:Provider selects the sender (SendGridApi | Smtp). SendGridApi (HTTPS) is the
+        // default because Railway — this app's production host — blocks outbound SMTP ports
+        // (25/465/587), so raw SMTP can never connect from a Railway container regardless of
+        // how correct the SendGrid credentials are. Smtp remains available for hosts that don't
+        // block those ports.
+        var emailProvider = config["Email:Provider"] ?? "SendGridApi";
+        if (emailProvider.Equals("Smtp", StringComparison.OrdinalIgnoreCase))
+            services.AddScoped<IEmailSender, SmtpEmailSender>();
+        else
+            services.AddHttpClient<IEmailSender, SendGridApiEmailSender>();
         services.AddScoped<IInvoicePdfBuilder, QuestPdfInvoiceBuilder>();
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 

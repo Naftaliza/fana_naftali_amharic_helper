@@ -180,7 +180,8 @@ variables (double-underscore syntax, e.g. `Ai__Provider`):
 | `Tts__Provider`           | `Azure` or `ElevenLabs`                            | `Azure`       |
 | `Tts__AzureSpeechKey` / `Tts__AzureRegion` | Azure Speech credentials          | empty         |
 | `Admin__Emails`           | CSV of emails granted admin access (provider/lead consoles) | empty |
-| `Email__Smtp__Host` / `Port` / `Username` / `Password` / `From` | SMTP credentials (MailKit) used to email generated invoice PDFs and password-reset links; via `SENDGRID_API_KEY` / `SENDGRID_FROM_EMAIL` in Docker, host is `smtp.sendgrid.net`, username is the literal `apikey` | empty |
+| `Email__Provider` | `SendGridApi` (default, HTTPS — works on hosts like Railway that block outbound SMTP ports) or `Smtp` (MailKit, for hosts that don't) | `SendGridApi` |
+| `Email__Smtp__Password` / `From` | SendGrid API key / verified sender, used to email generated invoice PDFs and password-reset links; via `SENDGRID_API_KEY` / `SENDGRID_FROM_EMAIL` in Docker. `Host`/`Port`/`Username` only matter for the `Smtp` provider | empty |
 | `Company__SupportEmail`   | "Questions about this invoice?" contact shown on invoice PDFs; falls back to the first `Admin:Emails` entry if unset | empty |
 
 ## Deployment
