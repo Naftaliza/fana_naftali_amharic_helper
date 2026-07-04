@@ -59,7 +59,7 @@ public record LeadSummaryDto(
     Guid ProviderId, string DisplayName, int MonthCount, int TotalCount,
     decimal PricePerLead, decimal MonthAmount, decimal TotalAmount,
     int ConvertedMonthCount, int ConvertedTotalCount, decimal BillableMonthAmount, decimal BillableTotalAmount,
-    double? HelpfulRate);
+    double? HelpfulRate, string? ContactEmail);
 
 /// <summary>A single logged lead (a user→provider contact).</summary>
 public record RecentLeadDto(

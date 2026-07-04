@@ -6,10 +6,14 @@ import { Check, Trash2, Mail, Phone, MessageCircle, MapPin, Pencil, X, Eye, EyeO
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
-import { LEAD_STATUS_KEYS, loc, type LeadsOverview, type ManagedProvider, type PendingProvider, type RecentLead } from "@/lib/types";
+import {
+  LEAD_STATUS_KEYS, loc, type LeadsOverview, type ManagedProvider,
+  type PendingProvider, type RecentLead,
+} from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { InvoiceCell } from "@/app/admin/providers/InvoiceCell";
 
 const CATEGORY_KEYS = [
   "cat.government", "cat.bank", "cat.insurance", "cat.employment",
@@ -197,6 +201,8 @@ export default function AdminProvidersPage() {
   // ---- Leads tab ----
   function LeadsTab() {
     const [data, setData] = useState<LeadsOverview | null>(null);
+    const now = new Date();
+    const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
     useEffect(() => { api.adminLeads().then(setData).catch(() => setData({ summary: [], recent: [] })); }, []);
 
     const setStatus = async (lead: RecentLead, status: number) => {
@@ -212,7 +218,21 @@ export default function AdminProvidersPage() {
         {/* Per-provider counts — the invoice numbers. */}
         <Card>
           <CardContent className="py-4">
-            <h2 className="mb-3 font-semibold">{t("leads.byProvider")}</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold">{t("leads.byProvider")}</h2>
+              <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                {t("invoice.period")}
+                <input
+                  type="month"
+                  value={`${period.year}-${String(period.month).padStart(2, "0")}`}
+                  onChange={(e) => {
+                    const [y, m] = e.target.value.split("-").map(Number);
+                    if (y && m) setPeriod({ year: y, month: m });
+                  }}
+                  className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                />
+              </label>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -224,6 +244,7 @@ export default function AdminProvidersPage() {
                     <th className="py-1 text-end font-medium">{t("leads.billable")}</th>
                     <th className="py-1 text-end font-medium">{t("leads.helpfulRate")}</th>
                     <th className="py-1 text-end font-medium">{t("leads.total")}</th>
+                    <th className="py-1 text-end font-medium">{t("invoice.generate")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -239,6 +260,12 @@ export default function AdminProvidersPage() {
                       <td className="py-2 text-end font-semibold text-brand">₪{s.billableMonthAmount}</td>
                       <td className="py-2 text-end">{s.helpfulRate == null ? "—" : `${Math.round(s.helpfulRate * 100)}%`}</td>
                       <td className="py-2 text-end">{s.totalCount}</td>
+                      <td className="py-2 text-end">
+                        <InvoiceCell
+                          providerId={s.providerId} year={period.year} month={period.month}
+                          hasEmail={!!s.contactEmail}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

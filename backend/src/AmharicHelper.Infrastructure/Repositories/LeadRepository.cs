@@ -24,9 +24,10 @@ public class LeadRepository(ISqlConnectionFactory factory) : ILeadRepository
                    COUNT(*) FILTER (WHERE l.Status = 3)::int AS ConvertedTotalCount,
                    (COUNT(*) FILTER (WHERE l.CreatedAt >= date_trunc('month', now()) AND l.Status = 3) * p.PricePerLead)::numeric AS BillableMonthAmount,
                    (COUNT(*) FILTER (WHERE l.Status = 3) * p.PricePerLead)::numeric AS BillableTotalAmount,
-                   (COUNT(*) FILTER (WHERE l.Helpful = true))::float8 / NULLIF(COUNT(*) FILTER (WHERE l.Helpful IS NOT NULL), 0) AS HelpfulRate
+                   (COUNT(*) FILTER (WHERE l.Helpful = true))::float8 / NULLIF(COUNT(*) FILTER (WHERE l.Helpful IS NOT NULL), 0) AS HelpfulRate,
+                   p.ContactEmail AS ContactEmail
             FROM Leads l JOIN Providers p ON p.Id = l.ProviderId
-            GROUP BY p.Id, p.DisplayName, p.PricePerLead
+            GROUP BY p.Id, p.DisplayName, p.PricePerLead, p.ContactEmail
             ORDER BY MonthCount DESC, TotalCount DESC
             """);
         return rows.ToList();
@@ -81,5 +82,49 @@ public class LeadRepository(ISqlConnectionFactory factory) : ILeadRepository
             "UPDATE Leads SET Helpful = @Helpful WHERE Ref = @Ref",
             new { Ref = refCode, Helpful = helpful });
         return rows > 0;
+    }
+
+    public async Task<IReadOnlyList<Lead>> GetConvertedForPeriodAsync(Guid providerId, int year, int month, CancellationToken ct = default)
+    {
+        using var conn = factory.Create();
+        var rows = await conn.QueryAsync<LeadRow>(
+            """
+            SELECT Id, ProviderId, Category, Urgency, DocumentId, Ref, Status, Helpful, CreatedAt
+            FROM Leads
+            WHERE ProviderId = @providerId
+              AND Status = 3
+              AND CreatedAt >= make_date(@year, @month, 1)
+              AND CreatedAt < make_date(@year, @month, 1) + INTERVAL '1 month'
+            ORDER BY CreatedAt
+            """,
+            new { providerId, year, month });
+        return rows.Select(r => r.ToEntity()).ToList();
+    }
+
+    /// <summary>Raw row matching the SQL columns; int enum columns are cast in <see cref="ToEntity"/>.</summary>
+    private class LeadRow
+    {
+        public Guid Id { get; set; }
+        public Guid ProviderId { get; set; }
+        public int Category { get; set; }
+        public int Urgency { get; set; }
+        public Guid? DocumentId { get; set; }
+        public string? Ref { get; set; }
+        public int Status { get; set; }
+        public bool? Helpful { get; set; }
+        public DateTime CreatedAt { get; set; }
+
+        public Lead ToEntity() => new()
+        {
+            Id = Id,
+            ProviderId = ProviderId,
+            Category = (DocumentCategory)Category,
+            Urgency = (UrgencyLevel)Urgency,
+            DocumentId = DocumentId,
+            Ref = Ref,
+            Status = (LeadStatus)Status,
+            Helpful = Helpful,
+            CreatedAt = CreatedAt
+        };
     }
 }

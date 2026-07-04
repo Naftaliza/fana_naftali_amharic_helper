@@ -1,5 +1,7 @@
 using AmharicHelper.Application.Abstractions;
 using AmharicHelper.Infrastructure.Ai;
+using AmharicHelper.Infrastructure.Email;
+using AmharicHelper.Infrastructure.Invoicing;
 using AmharicHelper.Infrastructure.Ocr;
 using AmharicHelper.Infrastructure.Persistence;
 using AmharicHelper.Infrastructure.Repositories;
@@ -32,6 +34,15 @@ public static class DependencyInjection
         services.AddScoped<ITtsAudioCacheRepository, TtsAudioCacheRepository>();
         services.AddScoped<IProviderRepository, ProviderRepository>();
         services.AddScoped<ILeadRepository, LeadRepository>();
+        services.AddScoped<IOrganizationRepository, OrganizationRepository>();
+        services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+
+        // Provider invoicing: PDF generation (QuestPDF — Community license, revenue-capped; see
+        // README) and outbound email (MailKit/SMTP, configured via Email:Smtp).
+        services.Configure<EmailOptions>(config.GetSection("Email:Smtp"));
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<IInvoicePdfBuilder, QuestPdfInvoiceBuilder>();
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
         // Security
         services.Configure<JwtOptions>(config.GetSection("Jwt"));
