@@ -17,6 +17,24 @@ can help with that document.
 > post-contact satisfaction feedback for billing integrity, partner
 > self-registration, and an admin review console) is built in, alongside a
 > first-run onboarding walkthrough and a one-tap "Share Fana" growth loop.
+> Provider billing turns those tracked lead counts into real invoices: an admin
+> can generate a persisted, immutable PDF invoice for a provider's billable
+> (Converted) leads in a given month and email it to them — no payment
+> collection yet, the provider still pays out-of-band. A
+> B2B/B2G tenant model (`Organizations`) lets an institution — municipality,
+> health fund, NGO — license Fana under its own branding for its own
+> residents/members. A `?org=slug` link resolves and persists tenant branding
+> client-side (logo color, welcome message, and the registration flow tags new
+> members to that tenant); a global-admin console at `/admin/organizations`
+> creates, edits, and activates/deactivates tenants, and shows a per-tenant
+> usage dashboard (documents processed, unique members, category/urgency
+> breakdowns, weekly trend). Full white-label re-theming of every screen, a
+> dedicated subdomain per tenant, per-tenant data isolation, member invites,
+> and a scoped org-admin role (today's dashboard is gated by the same global
+> admin allowlist as everything else) are still future work (see
+> **Organizations** below).
+
+![Sample generated invoice PDF, branded with the Fana logo and colors](docs/invoice-sample.png)
 
 ## Tech stack
 
@@ -24,8 +42,10 @@ can help with that document.
 |-----------|----------------------------------------------------------------------|
 | Backend   | ASP.NET Core 9 Web API · Clean Architecture · CQRS (MediatR) · Repository pattern · Dapper |
 | Database  | PostgreSQL (via Npgsql); Railway-managed in production, Docker locally |
-| Auth      | JWT access + refresh tokens, PBKDF2 password hashing; admins by `Admin:Emails` allowlist |
+| Auth      | JWT access + refresh tokens, PBKDF2 password hashing; admins by `Admin:Emails` allowlist; forgot/reset-password flow emails a single-use, 1-hour link (`/forgot-password` → `/reset-password`) via the same `IEmailSender` built for invoicing |
 | Referrals | Vetted providers matched per document category · per-lead tracking with lifecycle status (New/Contacted/Responded/Converted/Invalid) for billing integrity · anonymous post-contact "was this helpful?" feedback → per-provider satisfaction rate · anonymous partner self-registration · admin approve/manage console |
+| Invoicing | Admin-initiated, persisted PDF invoices (QuestPDF), branded with the Fana logo/colors, per provider + calendar month, snapshotting billable (Converted) leads so a later status change never rewrites history · emailed via SMTP (MailKit) · one invoice per provider/month (unique index) · generation always persists even if the email send fails (`Status=Failed` + `SendError`, PDF still downloadable) · a billing statement, not a payment-collection/tax document — no tax ID or bank details, since payment is handled directly, out-of-band |
+| Organizations | B2B/B2G tenants (`Organizations`) — a user optionally tags itself to a tenant by slug at registration; admin-only tenant create/edit/activate-deactivate and an aggregate, anonymized usage dashboard (documents processed, unique members, category/urgency/weekly breakdowns) per tenant. Slug is locked after creation |
 | AI        | `IAiProvider` → `ClaudeAiProvider` (default) / `OpenAiProvider`      |
 | OCR       | `IOcrProvider` → `ClaudeOcrProvider` (default) / Google Vision / Azure |
 | TTS       | `ITtsProvider` → `AzureTtsProvider` (default) / ElevenLabs · audio cached per (document, language) |
@@ -33,6 +53,12 @@ can help with that document.
 | Languages | Hebrew (default, RTL) · Amharic · English                            |
 | Hosting   | Netlify (frontend) · Railway (API + PostgreSQL) — see `DEPLOY.md`    |
 | Hardening | Per-endpoint rate limiting (auth/trial/referrals) · CORS policy · PWA service worker · accessibility widget |
+| Performance | Brotli/gzip response compression · output caching on the tenant-branding endpoint · indexed hot query paths (`Users.OrganizationId`, `DocumentAnalyses.CreatedAt`) · immutable-cached static assets and tree-shaken icon imports on the frontend |
+
+> **QuestPDF licensing note:** invoice PDFs are generated with QuestPDF's free
+> "Community" license, which applies only below a revenue threshold QuestPDF
+> sets (check their license page before this matters commercially). Above that
+> threshold, a paid QuestPDF license is required.
 
 ## Project structure
 
@@ -50,24 +76,31 @@ Fana 2.0/
 │     └─ AmharicHelper.Api/             # controllers, Program.cs, DI, Swagger
 │  └─ tests/AmharicHelper.UnitTests/
 └─ frontend/
-   ├─ app/                      # landing, login, register, dashboard, upload,
-   │                           #   documents/[id], documents/[id]/chat, profile,
-   │                           #   partners (self-registration), admin/providers
+   ├─ app/                      # landing, login, register, forgot-password, reset-password,
+   │                           #   dashboard, upload, documents/[id], documents/[id]/chat, profile,
+   │                           #   partners (self-registration), admin/providers,
+   │                           #   admin/organizations (B2G tenant console)
    ├─ components/               # Navbar, UploadExperience, CameraCapture, AnalysisCard,
    │                           #   ReferralBlock, LeadFeedbackPrompt, ShareButton, Onboarding,
    │                           #   AccessibilityWidget, ServiceWorker, ui/
-   ├─ lib/                      # api client, auth + language contexts, types
-   └─ i18n/                     # he / am / en dictionaries
+   ├─ lib/                      # api client, auth + language + organization contexts, types
+   ├─ i18n/                     # he / am / en dictionaries
+   └─ jest.config.js, jest.setup.ts  # Jest + React Testing Library; *.test.ts(x) live in
+                                      #   __tests__/ folders next to the code they cover
 ```
 
 The backend Application layer is organized by feature (`Auth`, `Documents`,
-`Chat`, `Trial`, `Partners`, `Referrals`), each with its CQRS commands/queries.
+`Chat`, `Trial`, `Partners`, `Referrals`, `Organizations`), each with its CQRS
+commands/queries.
 
 ### Database schema
-`Users`, `RefreshTokens`, `Documents`, `DocumentAnalyses`, `ChatMessages`,
-`TtsAudioCache`, `Providers`, `Leads` (with `Status` and `Helpful` columns for
-lead lifecycle + post-contact feedback) (see
-`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`011`).
+`Users` (with an optional `OrganizationId`), `RefreshTokens`, `Documents`,
+`DocumentAnalyses`, `ChatMessages`, `TtsAudioCache`, `Providers`, `Leads` (with
+`Status` and `Helpful` columns for lead lifecycle + post-contact feedback),
+`Organizations` (B2B/B2G tenant branding), `Invoices` (persisted, immutable
+per-provider/month billing snapshots, unique on `(ProviderId, PeriodYear,
+PeriodMonth)`) (see
+`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`014`).
 Migrations are idempotent PostgreSQL and run on API startup. Analysis text
 columns store JSON localized to `{ he, am, en }`.
 
@@ -84,6 +117,9 @@ columns store JSON localized to `{ he, am, en }`.
 - `POST /api/partners/apply` (business self-registration, anonymous, rate-limited)
 - `GET|PUT|POST|DELETE /api/admin/providers...` (review/manage providers — admin only)
 - `GET  /api/admin/leads` (lead overview — admin only), `PUT /api/admin/leads/{id}/status` (update lead lifecycle status — admin only)
+- `GET /api/admin/providers/{id}/invoices/status?year=&month=` (check if an invoice exists for a provider+month), `POST /api/admin/providers/{id}/invoices/generate` (generate + email a PDF invoice for the billable leads in that month), `GET /api/admin/providers/{id}/invoices/{invoiceId}/pdf` (re-download the PDF) — admin only
+- `GET  /api/organizations/{slug}` (tenant branding lookup — anonymous, drives a white-labeled front end, output-cached 2 min)
+- `POST /api/admin/organizations` (create a tenant), `GET /api/admin/organizations` (list), `PUT /api/admin/organizations/{id}` (edit branding — slug immutable), `POST /api/admin/organizations/{id}/active?value=` (activate/deactivate), `GET /api/admin/organizations/{id}/stats` (usage dashboard) — admin only
 - `GET /health`
 
 ## Local development
@@ -123,7 +159,8 @@ placeholder; register a real user for a working login).
 
 ### Tests
 ```bash
-cd backend && dotnet test
+cd backend && dotnet test          # xUnit — hand-written fakes, no mocking library
+cd frontend && npm test            # Jest + React Testing Library
 ```
 
 ## Configuration
@@ -141,6 +178,8 @@ variables (double-underscore syntax, e.g. `Ai__Provider`):
 | `Tts__Provider`           | `Azure` or `ElevenLabs`                            | `Azure`       |
 | `Tts__AzureSpeechKey` / `Tts__AzureRegion` | Azure Speech credentials          | empty         |
 | `Admin__Emails`           | CSV of emails granted admin access (provider/lead consoles) | empty |
+| `Email__Smtp__Host` / `Port` / `Username` / `Password` / `From` | SMTP credentials (MailKit) used to email generated invoice PDFs to providers | empty |
+| `Company__SupportEmail`   | "Questions about this invoice?" contact shown on invoice PDFs; falls back to the first `Admin:Emails` entry if unset | empty |
 
 ## Deployment
 
