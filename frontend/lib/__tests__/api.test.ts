@@ -24,11 +24,12 @@ function emptyResponse(status: number): Response {
 describe("api request()", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
     global.fetch = jest.fn();
   });
 
   it("refreshes once and replays the original request on a 401", async () => {
-    tokenStore.set("expired-access-token", "valid-refresh-token");
+    tokenStore.set("expired-access-token", "valid-refresh-token", true);
 
     const fetchMock = global.fetch as jest.Mock;
     fetchMock
@@ -50,7 +51,7 @@ describe("api request()", () => {
   });
 
   it("resolves to undefined for a 204 No Content response", async () => {
-    tokenStore.set("access-token", "refresh-token");
+    tokenStore.set("access-token", "refresh-token", true);
     (global.fetch as jest.Mock).mockResolvedValueOnce(emptyResponse(204));
 
     const result = await api.me();
@@ -59,16 +60,64 @@ describe("api request()", () => {
   });
 
   it("throws a stable UPLOAD_TOO_LARGE error for a 413 response", async () => {
-    tokenStore.set("access-token", "refresh-token");
+    tokenStore.set("access-token", "refresh-token", true);
     (global.fetch as jest.Mock).mockResolvedValueOnce(emptyResponse(413));
 
     await expect(api.me()).rejects.toThrow("UPLOAD_TOO_LARGE");
   });
 
   it("throws the server's error message for a generic failure", async () => {
-    tokenStore.set("access-token", "refresh-token");
+    tokenStore.set("access-token", "refresh-token", true);
     (global.fetch as jest.Mock).mockResolvedValueOnce(jsonResponse(500, { error: "Something broke" }));
 
     await expect(api.me()).rejects.toThrow("Something broke");
+  });
+
+  it("throws a stable RATE_LIMITED error for a 429 response", async () => {
+    tokenStore.set("access-token", "refresh-token", true);
+    (global.fetch as jest.Mock).mockResolvedValueOnce(emptyResponse(429));
+
+    await expect(api.me()).rejects.toThrow("RATE_LIMITED");
+  });
+
+  it("throws a stable NETWORK_ERROR when fetch itself fails", async () => {
+    tokenStore.set("access-token", "refresh-token", true);
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(api.me()).rejects.toThrow("NETWORK_ERROR");
+  });
+});
+
+describe("tokenStore remember-me storage", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+
+  it("persists to localStorage and clears sessionStorage when remember is true", () => {
+    window.sessionStorage.setItem("accessToken", "stale-session-token");
+    tokenStore.set("access-token", "refresh-token", true);
+
+    expect(window.localStorage.getItem("accessToken")).toBe("access-token");
+    expect(window.sessionStorage.getItem("accessToken")).toBeNull();
+    expect(tokenStore.access).toBe("access-token");
+  });
+
+  it("persists to sessionStorage and clears localStorage when remember is false", () => {
+    window.localStorage.setItem("accessToken", "stale-local-token");
+    tokenStore.set("access-token", "refresh-token", false);
+
+    expect(window.sessionStorage.getItem("accessToken")).toBe("access-token");
+    expect(window.localStorage.getItem("accessToken")).toBeNull();
+    expect(tokenStore.access).toBe("access-token");
+  });
+
+  it("clears both storages on clear()", () => {
+    tokenStore.set("access-token", "refresh-token", true);
+    tokenStore.clear();
+
+    expect(window.localStorage.getItem("accessToken")).toBeNull();
+    expect(window.sessionStorage.getItem("accessToken")).toBeNull();
+    expect(tokenStore.access).toBeNull();
   });
 });

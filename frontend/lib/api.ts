@@ -26,20 +26,32 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080";
 const TOKEN_KEY = "accessToken";
 const REFRESH_KEY = "refreshToken";
 
+// "Remember me" support: tokens live in localStorage (persists across browser restarts) or
+// sessionStorage (cleared when the tab/browser closes), never both — set() always clears the
+// other storage so a later login with a different `remember` value can't leave a stale session
+// sitting in the storage the reader doesn't expect.
 export const tokenStore = {
   get access() {
-    return typeof window === "undefined" ? null : window.localStorage.getItem(TOKEN_KEY);
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(TOKEN_KEY) ?? window.sessionStorage.getItem(TOKEN_KEY);
   },
   get refresh() {
-    return typeof window === "undefined" ? null : window.localStorage.getItem(REFRESH_KEY);
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(REFRESH_KEY) ?? window.sessionStorage.getItem(REFRESH_KEY);
   },
-  set(access: string, refresh: string) {
-    window.localStorage.setItem(TOKEN_KEY, access);
-    window.localStorage.setItem(REFRESH_KEY, refresh);
+  set(access: string, refresh: string, remember: boolean) {
+    const active = remember ? window.localStorage : window.sessionStorage;
+    const inactive = remember ? window.sessionStorage : window.localStorage;
+    active.setItem(TOKEN_KEY, access);
+    active.setItem(REFRESH_KEY, refresh);
+    inactive.removeItem(TOKEN_KEY);
+    inactive.removeItem(REFRESH_KEY);
   },
   clear() {
     window.localStorage.removeItem(TOKEN_KEY);
     window.localStorage.removeItem(REFRESH_KEY);
+    window.sessionStorage.removeItem(TOKEN_KEY);
+    window.sessionStorage.removeItem(REFRESH_KEY);
   },
 };
 
@@ -58,6 +70,9 @@ function refreshOnce(): Promise<boolean> {
   refreshInFlight ??= (async () => {
     const refresh = tokenStore.refresh;
     if (!refresh) return false;
+    // Preserve the storage mode chosen at login — a mid-session refresh shouldn't silently
+    // move a "remember me" session into sessionStorage or vice versa.
+    const remember = window.localStorage.getItem(REFRESH_KEY) !== null;
     try {
       const res = await fetch(`${BASE}/api/auth/refresh`, {
         method: "POST",
@@ -69,7 +84,7 @@ function refreshOnce(): Promise<boolean> {
         return false;
       }
       const data = (await res.json()) as AuthResponse;
-      tokenStore.set(data.accessToken, data.refreshToken);
+      tokenStore.set(data.accessToken, data.refreshToken, remember);
       return true;
     } catch {
       return false;
@@ -86,7 +101,12 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
   const token = tokenStore.access;
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${BASE}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, { ...options, headers });
+  } catch {
+    throw new Error("NETWORK_ERROR");
+  }
 
   // Access token likely expired — refresh once and replay the request.
   if (res.status === 401 && retry && token && (await refreshOnce())) {
@@ -96,6 +116,9 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
   // Request body too large (size limit) — the response has no JSON body; surface a stable code the
   // UI can localize instead of the raw "Payload Too Large" status text.
   if (res.status === 413) throw new Error("UPLOAD_TOO_LARGE");
+
+  // Rate limiter rejection (Program.cs) has no JSON body either — same stable-code treatment.
+  if (res.status === 429) throw new Error("RATE_LIMITED");
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));

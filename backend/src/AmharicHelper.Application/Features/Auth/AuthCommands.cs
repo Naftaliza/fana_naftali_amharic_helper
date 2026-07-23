@@ -66,13 +66,42 @@ public class LoginHandler(
     IUserRepository users,
     IPasswordHasher hasher,
     IJwtService jwt,
-    IRefreshTokenRepository refreshTokens) : IRequestHandler<LoginCommand, Result<AuthResponse>>
+    IRefreshTokenRepository refreshTokens,
+    IConfiguration config) : IRequestHandler<LoginCommand, Result<AuthResponse>>
 {
+    private const string InvalidCredentials = "Invalid email or password.";
+
     public async Task<Result<AuthResponse>> Handle(LoginCommand cmd, CancellationToken ct)
     {
+        var maxAttempts = int.TryParse(config["Auth:MaxFailedLoginAttempts"], out var m) ? m : 5;
+        var lockoutMinutes = int.TryParse(config["Auth:LockoutMinutes"], out var l) ? l : 15;
+
         var user = await users.GetByEmailAsync(cmd.Request.Email, ct);
-        if (user is null || !hasher.Verify(cmd.Request.Password, user.PasswordHash))
-            return Result<AuthResponse>.Fail("Invalid email or password.");
+        if (user is null) return Result<AuthResponse>.Fail(InvalidCredentials);
+
+        // Checked before verifying the password: a still-correct password must not lift an
+        // active lockout early. Same generic message as every other failure below — a distinct
+        // "account locked" message would let an attacker distinguish a real, locked-out email
+        // from a nonexistent one, defeating the anti-enumeration protection this codebase
+        // otherwise maintains (see ForgotPasswordHandler/ResetPasswordHandler).
+        if (user.LockoutEndsAt is { } until && until > DateTime.UtcNow)
+            return Result<AuthResponse>.Fail(InvalidCredentials);
+
+        if (!hasher.Verify(cmd.Request.Password, user.PasswordHash))
+        {
+            user.FailedLoginAttempts++;
+            if (user.FailedLoginAttempts >= maxAttempts)
+                user.LockoutEndsAt = DateTime.UtcNow.AddMinutes(lockoutMinutes);
+            await users.UpdateAsync(user, ct);
+            return Result<AuthResponse>.Fail(InvalidCredentials);
+        }
+
+        if (user.FailedLoginAttempts != 0 || user.LockoutEndsAt != null)
+        {
+            user.FailedLoginAttempts = 0;
+            user.LockoutEndsAt = null;
+            await users.UpdateAsync(user, ct);
+        }
 
         return Result<AuthResponse>.Ok(await TokenFactory.IssueAsync(user, jwt, refreshTokens, ct));
     }

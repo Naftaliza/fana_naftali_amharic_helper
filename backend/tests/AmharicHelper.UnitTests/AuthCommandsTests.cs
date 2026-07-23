@@ -38,8 +38,125 @@ public class AuthCommandsTests
     private static IConfiguration Config() =>
         new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Frontend:Origin"] = "http://localhost:3001" }).Build();
 
+    private static IConfiguration LoginConfig(int maxAttempts = 5, int lockoutMinutes = 15) =>
+        new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Auth:MaxFailedLoginAttempts"] = maxAttempts.ToString(),
+            ["Auth:LockoutMinutes"] = lockoutMinutes.ToString(),
+        }).Build();
+
+    private sealed class FakeJwtService : IJwtService
+    {
+        public string CreateAccessToken(User user) => "fake-access-token";
+        public string CreateRefreshToken() => "fake-refresh-token";
+    }
+
+    private sealed class FakeRefreshTokenRepository : IRefreshTokenRepository
+    {
+        public Task<RefreshToken?> GetByTokenAsync(string token, CancellationToken ct = default) => Task.FromResult<RefreshToken?>(null);
+        public Task AddAsync(RefreshToken token, CancellationToken ct = default) => Task.CompletedTask;
+        public Task RevokeAsync(Guid id, CancellationToken ct = default) => Task.CompletedTask;
+    }
+
     // Reuse the real hasher, matching PasswordHasherTests.cs's existing convention.
     private static readonly PasswordHasher Hasher = new();
+
+    // ---- LoginHandler ----
+
+    [Fact]
+    public async Task Login_succeeds_and_resets_prior_failed_attempts()
+    {
+        var user = new User
+        {
+            Email = "user@test.local",
+            PasswordHash = Hasher.Hash("correct-password"),
+            FailedLoginAttempts = 3,
+            LockoutEndsAt = null,
+        };
+        var users = new FakeUserRepository { ToReturn = user };
+        var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig());
+
+        var result = await handler.Handle(new LoginCommand(new LoginRequest("user@test.local", "correct-password")), default);
+
+        Assert.True(result.Success);
+        Assert.NotNull(users.Updated);
+        Assert.Equal(0, users.Updated!.FailedLoginAttempts);
+        Assert.Null(users.Updated.LockoutEndsAt);
+    }
+
+    [Fact]
+    public async Task Login_wrong_password_increments_failed_attempts_without_locking()
+    {
+        var user = new User { Email = "user@test.local", PasswordHash = Hasher.Hash("correct-password") };
+        var users = new FakeUserRepository { ToReturn = user };
+        var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig(maxAttempts: 5));
+
+        var result = await handler.Handle(new LoginCommand(new LoginRequest("user@test.local", "wrong-password")), default);
+
+        Assert.False(result.Success);
+        Assert.NotNull(users.Updated);
+        Assert.Equal(1, users.Updated!.FailedLoginAttempts);
+        Assert.Null(users.Updated.LockoutEndsAt);
+    }
+
+    [Fact]
+    public async Task Login_reaching_the_attempt_threshold_locks_the_account()
+    {
+        var user = new User { Email = "user@test.local", PasswordHash = Hasher.Hash("correct-password"), FailedLoginAttempts = 4 };
+        var users = new FakeUserRepository { ToReturn = user };
+        var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig(maxAttempts: 5, lockoutMinutes: 15));
+
+        var result = await handler.Handle(new LoginCommand(new LoginRequest("user@test.local", "wrong-password")), default);
+
+        Assert.False(result.Success);
+        Assert.NotNull(users.Updated);
+        Assert.Equal(5, users.Updated!.FailedLoginAttempts);
+        Assert.NotNull(users.Updated.LockoutEndsAt);
+        Assert.True(users.Updated.LockoutEndsAt > DateTime.UtcNow.AddMinutes(10));
+        Assert.True(users.Updated.LockoutEndsAt < DateTime.UtcNow.AddMinutes(20));
+    }
+
+    [Fact]
+    public async Task Login_rejects_a_locked_account_even_with_the_correct_password()
+    {
+        var user = new User
+        {
+            Email = "user@test.local",
+            PasswordHash = Hasher.Hash("correct-password"),
+            FailedLoginAttempts = 5,
+            LockoutEndsAt = DateTime.UtcNow.AddMinutes(10),
+        };
+        var users = new FakeUserRepository { ToReturn = user };
+        var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig());
+
+        var result = await handler.Handle(new LoginCommand(new LoginRequest("user@test.local", "correct-password")), default);
+
+        Assert.False(result.Success);
+        // The lockout branch returns before ever touching the repository — it must not reset
+        // or otherwise mutate the attempt counters while still locked.
+        Assert.Null(users.Updated);
+    }
+
+    [Fact]
+    public async Task Login_succeeds_once_the_lockout_has_expired()
+    {
+        var user = new User
+        {
+            Email = "user@test.local",
+            PasswordHash = Hasher.Hash("correct-password"),
+            FailedLoginAttempts = 5,
+            LockoutEndsAt = DateTime.UtcNow.AddMinutes(-1),
+        };
+        var users = new FakeUserRepository { ToReturn = user };
+        var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig());
+
+        var result = await handler.Handle(new LoginCommand(new LoginRequest("user@test.local", "correct-password")), default);
+
+        Assert.True(result.Success);
+        Assert.NotNull(users.Updated);
+        Assert.Equal(0, users.Updated!.FailedLoginAttempts);
+        Assert.Null(users.Updated.LockoutEndsAt);
+    }
 
     // ---- ForgotPasswordHandler ----
 

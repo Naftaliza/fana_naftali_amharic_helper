@@ -19,4 +19,8 @@ public class User
     // Single-use, time-limited password reset. Only the token hash is persisted.
     public string? PasswordResetTokenHash { get; set; }
     public DateTime? PasswordResetExpiresAt { get; set; }
+
+    // Account lockout after repeated failed logins (see LoginHandler).
+    public int FailedLoginAttempts { get; set; }
+    public DateTime? LockoutEndsAt { get; set; }
 }

@@ -40,7 +40,9 @@ public class UserRepository(ISqlConnectionFactory factory) : IUserRepository
             SET Email = @Email, PasswordHash = @PasswordHash, DisplayName = @DisplayName,
                 PreferredLanguage = @PreferredLanguage,
                 PasswordResetTokenHash = @PasswordResetTokenHash,
-                PasswordResetExpiresAt = @PasswordResetExpiresAt
+                PasswordResetExpiresAt = @PasswordResetExpiresAt,
+                FailedLoginAttempts = @FailedLoginAttempts,
+                LockoutEndsAt = @LockoutEndsAt
             WHERE Id = @Id
             """, user);
     }

@@ -42,7 +42,7 @@ can help with that document.
 |-----------|----------------------------------------------------------------------|
 | Backend   | ASP.NET Core 9 Web API · Clean Architecture · CQRS (MediatR) · Repository pattern · Dapper |
 | Database  | PostgreSQL (via Npgsql); Railway-managed in production, Docker locally |
-| Auth      | JWT access + refresh tokens, PBKDF2 password hashing; admins by `Admin:Emails` allowlist; forgot/reset-password flow emails a single-use, 1-hour link (`/forgot-password` → `/reset-password`) via the same `IEmailSender` built for invoicing |
+| Auth      | JWT access + refresh tokens, PBKDF2 password hashing; admins by `Admin:Emails` allowlist; forgot/reset-password flow emails a single-use, 1-hour link (`/forgot-password` → `/reset-password`) via the same `IEmailSender` built for invoicing; account lockout after repeated failed logins (`Auth:MaxFailedLoginAttempts`/`Auth:LockoutMinutes`, on top of the per-IP rate limiter); "remember me" on login chooses `localStorage` (persists across browser restarts) vs. `sessionStorage` (cleared when the tab closes) for the token pair |
 | Referrals | Vetted providers matched per document category · per-lead tracking with lifecycle status (New/Contacted/Responded/Converted/Invalid) for billing integrity · anonymous post-contact "was this helpful?" feedback → per-provider satisfaction rate · anonymous partner self-registration · admin approve/manage console |
 | Invoicing | Admin-initiated, persisted PDF invoices (QuestPDF), branded with the Fana logo/colors, per provider + calendar month, snapshotting billable (Converted) leads so a later status change never rewrites history · emailed via SMTP (MailKit) · one invoice per provider/month (unique index) · generation always persists even if the email send fails (`Status=Failed` + `SendError`, PDF still downloadable) · a billing statement, not a payment-collection/tax document — no tax ID or bank details, since payment is handled directly, out-of-band |
 | Organizations | B2B/B2G tenants (`Organizations`) — a user optionally tags itself to a tenant by slug at registration; admin-only tenant create/edit/activate-deactivate and an aggregate, anonymized usage dashboard (documents processed, unique members, category/urgency/weekly breakdowns) per tenant. Slug is locked after creation |
@@ -100,7 +100,7 @@ commands/queries.
 `Organizations` (B2B/B2G tenant branding), `Invoices` (persisted, immutable
 per-provider/month billing snapshots, unique on `(ProviderId, PeriodYear,
 PeriodMonth)`) (see
-`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`014`).
+`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`015`).
 Migrations are idempotent PostgreSQL and run on API startup. Analysis text
 columns store JSON localized to `{ he, am, en }`.
 
@@ -180,6 +180,8 @@ variables (double-underscore syntax, e.g. `Ai__Provider`):
 | `Tts__Provider`           | `Azure` or `ElevenLabs`                            | `Azure`       |
 | `Tts__AzureSpeechKey` / `Tts__AzureRegion` | Azure Speech credentials          | empty         |
 | `Admin__Emails`           | CSV of emails granted admin access (provider/lead consoles) | empty |
+| `Auth__MaxFailedLoginAttempts` | Consecutive wrong-password attempts before an account is temporarily locked | `5` |
+| `Auth__LockoutMinutes`    | How long an account stays locked after hitting the attempt limit | `15` |
 | `Email__Provider` | `SendGridApi` (default, HTTPS — works on hosts like Railway that block outbound SMTP ports) or `Smtp` (MailKit, for hosts that don't) | `SendGridApi` |
 | `Email__Smtp__Password` / `From` | SendGrid API key / verified sender, used to email generated invoice PDFs and password-reset links; via `SENDGRID_API_KEY` / `SENDGRID_FROM_EMAIL` in Docker. `Host`/`Port`/`Username` only matter for the `Smtp` provider | empty |
 | `Company__SupportEmail`   | "Questions about this invoice?" contact shown on invoice PDFs; falls back to the first `Admin:Emails` entry if unset | empty |
