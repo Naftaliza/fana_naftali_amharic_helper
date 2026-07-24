@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { Button } from "@/components/ui/button";
@@ -25,19 +26,40 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setUnverifiedEmail(null);
+    setResendSent(false);
     try {
       await login(email, password, remember);
       router.push("/dashboard");
     } catch (err) {
       const msg = (err as Error).message;
-      setError(ERROR_MESSAGE_KEYS[msg] ? t(ERROR_MESSAGE_KEYS[msg]) : msg);
+      if (msg === "EMAIL_NOT_VERIFIED") {
+        setUnverifiedEmail(email);
+        setError(t("auth.emailNotVerified"));
+      } else {
+        setError(ERROR_MESSAGE_KEYS[msg] ? t(ERROR_MESSAGE_KEYS[msg]) : msg);
+      }
     } finally {
       setBusy(false);
+    }
+  };
+
+  const resendVerification = async () => {
+    if (!unverifiedEmail) return;
+    setResendBusy(true);
+    try {
+      await api.resendVerification(unverifiedEmail);
+      setResendSent(true);
+    } finally {
+      setResendBusy(false);
     }
   };
 
@@ -90,6 +112,15 @@ export default function LoginPage() {
               {t("auth.rememberMe")}
             </label>
             {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+            {unverifiedEmail && (
+              resendSent ? (
+                <p className="text-sm text-green-600">{t("auth.resendVerificationSent")}</p>
+              ) : (
+                <Button type="button" variant="outline" className="w-full" disabled={resendBusy} onClick={resendVerification}>
+                  {resendBusy ? t("common.loading") : t("auth.resendVerification")}
+                </Button>
+              )
+            )}
             <Button type="submit" className="w-full" disabled={busy}>{busy ? t("common.loading") : t("nav.login")}</Button>
           </form>
           <p className="mt-3 text-center text-sm">

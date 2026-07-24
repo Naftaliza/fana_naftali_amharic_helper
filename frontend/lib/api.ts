@@ -131,7 +131,7 @@ export const api = {
   // --- Auth ---
   register: (body: {
     email: string; password: string; displayName: string; preferredLanguage: number; organizationSlug?: string | null;
-  }) => request<AuthResponse>("/api/auth/register", { method: "POST", body: JSON.stringify(body) }),
+  }) => request<{ message: string; email: string }>("/api/auth/register", { method: "POST", body: JSON.stringify(body) }),
   login: (body: { email: string; password: string }) =>
     request<AuthResponse>("/api/auth/login", { method: "POST", body: JSON.stringify(body) }),
   forgotPassword: (email: string) =>
@@ -140,6 +140,10 @@ export const api = {
     request<{ message: string }>("/api/auth/reset-password", {
       method: "POST", body: JSON.stringify({ email, resetToken, newPassword }),
     }),
+  verifyEmail: (email: string, token: string) =>
+    request<AuthResponse>("/api/auth/verify-email", { method: "POST", body: JSON.stringify({ email, token }) }),
+  resendVerification: (email: string) =>
+    request<{ message: string }>("/api/auth/resend-verification", { method: "POST", body: JSON.stringify({ email }) }),
 
   // --- User ---
   me: () => request<AuthUser>("/api/users/me"),

@@ -42,7 +42,7 @@ can help with that document.
 |-----------|----------------------------------------------------------------------|
 | Backend   | ASP.NET Core 9 Web API · Clean Architecture · CQRS (MediatR) · Repository pattern · Dapper |
 | Database  | PostgreSQL (via Npgsql); Railway-managed in production, Docker locally |
-| Auth      | JWT access + refresh tokens, PBKDF2 password hashing; admins by `Admin:Emails` allowlist; forgot/reset-password flow emails a single-use, 1-hour link (`/forgot-password` → `/reset-password`) via the same `IEmailSender` built for invoicing; account lockout after repeated failed logins (`Auth:MaxFailedLoginAttempts`/`Auth:LockoutMinutes`, on top of the per-IP rate limiter); "remember me" on login chooses `localStorage` (persists across browser restarts) vs. `sessionStorage` (cleared when the tab closes) for the token pair |
+| Auth      | JWT access + refresh tokens, PBKDF2 password hashing; admins by `Admin:Emails` allowlist; forgot/reset-password flow emails a single-use, 1-hour link (`/forgot-password` → `/reset-password`) via the same `IEmailSender` built for invoicing; registration requires email verification before login — a new account starts unverified, gets emailed a single-use, 1-hour link (`/verify-email`), and only receives JWTs once that link is clicked (`/check-email` interstitial + a resend-verification option, both server- and login-page-side); account lockout after repeated failed logins (`Auth:MaxFailedLoginAttempts`/`Auth:LockoutMinutes`, on top of the per-IP rate limiter); "remember me" on login chooses `localStorage` (persists across browser restarts) vs. `sessionStorage` (cleared when the tab closes) for the token pair |
 | Referrals | Vetted providers matched per document category · per-lead tracking with lifecycle status (New/Contacted/Responded/Converted/Invalid) for billing integrity · anonymous post-contact "was this helpful?" feedback → per-provider satisfaction rate · anonymous partner self-registration · admin approve/manage console |
 | Invoicing | Admin-initiated, persisted PDF invoices (QuestPDF), branded with the Fana logo/colors, per provider + calendar month, snapshotting billable (Converted) leads so a later status change never rewrites history · emailed via SMTP (MailKit) · one invoice per provider/month (unique index) · generation always persists even if the email send fails (`Status=Failed` + `SendError`, PDF still downloadable) · a billing statement, not a payment-collection/tax document — no tax ID or bank details, since payment is handled directly, out-of-band |
 | Organizations | B2B/B2G tenants (`Organizations`) — a user optionally tags itself to a tenant by slug at registration; admin-only tenant create/edit/activate-deactivate and an aggregate, anonymized usage dashboard (documents processed, unique members, category/urgency/weekly breakdowns) per tenant. Slug is locked after creation |
@@ -76,7 +76,8 @@ Fana 2.0/
 │     └─ AmharicHelper.Api/             # controllers, Program.cs, DI, Swagger
 │  └─ tests/AmharicHelper.UnitTests/
 └─ frontend/
-   ├─ app/                      # landing, login, register, forgot-password, reset-password,
+   ├─ app/                      # landing, login, register, check-email, verify-email,
+   │                           #   forgot-password, reset-password,
    │                           #   dashboard, upload, documents/[id], documents/[id]/chat, profile,
    │                           #   partners (self-registration), admin/providers,
    │                           #   admin/organizations (B2G tenant console)
@@ -100,12 +101,12 @@ commands/queries.
 `Organizations` (B2B/B2G tenant branding), `Invoices` (persisted, immutable
 per-provider/month billing snapshots, unique on `(ProviderId, PeriodYear,
 PeriodMonth)`) (see
-`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`015`).
+`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`016`).
 Migrations are idempotent PostgreSQL and run on API startup. Analysis text
 columns store JSON localized to `{ he, am, en }`.
 
 ### API endpoints
-- `POST /api/auth/register | login | refresh | forgot-password | reset-password`
+- `POST /api/auth/register | login | refresh | forgot-password | reset-password | verify-email | resend-verification`
 - `GET  /api/users/me`
 - `POST /api/documents` (upload + OCR), `GET /api/documents`, `GET /api/documents/{id}`
 - `POST /api/documents/{id}/analyze?category=`

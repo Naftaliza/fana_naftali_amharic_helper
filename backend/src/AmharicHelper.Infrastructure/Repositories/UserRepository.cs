@@ -26,8 +26,10 @@ public class UserRepository(ISqlConnectionFactory factory) : IUserRepository
         using var conn = factory.Create();
         await conn.ExecuteAsync(
             """
-            INSERT INTO Users (Id, Email, PasswordHash, DisplayName, PreferredLanguage, CreatedAt, OrganizationId)
-            VALUES (@Id, @Email, @PasswordHash, @DisplayName, @PreferredLanguage, @CreatedAt, @OrganizationId)
+            INSERT INTO Users (Id, Email, PasswordHash, DisplayName, PreferredLanguage, CreatedAt, OrganizationId,
+                               EmailVerified, EmailVerificationTokenHash, EmailVerificationExpiresAt)
+            VALUES (@Id, @Email, @PasswordHash, @DisplayName, @PreferredLanguage, @CreatedAt, @OrganizationId,
+                    @EmailVerified, @EmailVerificationTokenHash, @EmailVerificationExpiresAt)
             """, user);
     }
 
@@ -42,7 +44,10 @@ public class UserRepository(ISqlConnectionFactory factory) : IUserRepository
                 PasswordResetTokenHash = @PasswordResetTokenHash,
                 PasswordResetExpiresAt = @PasswordResetExpiresAt,
                 FailedLoginAttempts = @FailedLoginAttempts,
-                LockoutEndsAt = @LockoutEndsAt
+                LockoutEndsAt = @LockoutEndsAt,
+                EmailVerified = @EmailVerified,
+                EmailVerificationTokenHash = @EmailVerificationTokenHash,
+                EmailVerificationExpiresAt = @EmailVerificationExpiresAt
             WHERE Id = @Id
             """, user);
     }

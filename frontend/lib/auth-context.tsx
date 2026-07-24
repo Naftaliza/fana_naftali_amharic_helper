@@ -10,7 +10,8 @@ interface AuthContextValue {
   login: (email: string, password: string, remember: boolean) => Promise<void>;
   register: (
     email: string, password: string, displayName: string, preferredLanguage: number, organizationSlug?: string | null
-  ) => Promise<void>;
+  ) => Promise<{ email: string }>;
+  verifyEmail: (email: string, token: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -38,9 +39,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (
     email: string, password: string, displayName: string, preferredLanguage: number, organizationSlug?: string | null
   ) => {
+    // The account is created unverified — no tokens come back yet. The caller sends the
+    // user to a "check your email" screen; login only happens once the emailed link is
+    // clicked (see verifyEmail below).
     const res = await api.register({ email, password, displayName, preferredLanguage, organizationSlug });
-    // No remember-me control on the register page — new signups always persist, matching
-    // today's (pre-remember-me) behavior.
+    return { email: res.email };
+  };
+
+  const verifyEmail = async (email: string, token: string) => {
+    const res = await api.verifyEmail(email, token);
+    // No remember-me control on this flow — matches register's old always-persist behavior.
     tokenStore.set(res.accessToken, res.refreshToken, true);
     setUser(await api.me().catch(() => res.user));
   };
@@ -51,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, verifyEmail, logout }}>
       {children}
     </AuthContext.Provider>
   );

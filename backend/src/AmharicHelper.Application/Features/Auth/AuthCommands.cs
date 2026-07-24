@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace AmharicHelper.Application.Features.Auth;
 
 // ---- Register ----
-public record RegisterCommand(RegisterRequest Request) : IRequest<Result<AuthResponse>>;
+public record RegisterCommand(RegisterRequest Request) : IRequest<Result<RegisterResponse>>;
 
 public class RegisterValidator : AbstractValidator<RegisterCommand>
 {
@@ -27,14 +27,15 @@ public class RegisterHandler(
     IUserRepository users,
     IOrganizationRepository organizations,
     IPasswordHasher hasher,
-    IJwtService jwt,
-    IRefreshTokenRepository refreshTokens) : IRequestHandler<RegisterCommand, Result<AuthResponse>>
+    IEmailSender emailSender,
+    IConfiguration config,
+    ILogger<RegisterHandler> logger) : IRequestHandler<RegisterCommand, Result<RegisterResponse>>
 {
-    public async Task<Result<AuthResponse>> Handle(RegisterCommand cmd, CancellationToken ct)
+    public async Task<Result<RegisterResponse>> Handle(RegisterCommand cmd, CancellationToken ct)
     {
         var req = cmd.Request;
         if (await users.GetByEmailAsync(req.Email, ct) is not null)
-            return Result<AuthResponse>.Fail("Email already registered.");
+            return Result<RegisterResponse>.Fail("Email already registered.");
 
         // Registering through a tenant-branded front end tags the new user as that org's
         // member. An unknown/inactive slug is silently ignored — never blocks sign-up.
@@ -45,17 +46,44 @@ public class RegisterHandler(
             if (org is { IsActive: true }) organizationId = org.Id;
         }
 
+        // Account starts unverified — no JWTs are issued until the emailed link is clicked
+        // (see VerifyEmailHandler), same single-use hashed-token pattern as password reset.
+        var rawToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         var user = new User
         {
             Email = req.Email,
             DisplayName = req.DisplayName,
             PreferredLanguage = req.PreferredLanguage,
             PasswordHash = hasher.Hash(req.Password),
-            OrganizationId = organizationId
+            OrganizationId = organizationId,
+            EmailVerified = false,
+            EmailVerificationTokenHash = hasher.Hash(rawToken),
+            EmailVerificationExpiresAt = DateTime.UtcNow.AddHours(1)
         };
         await users.AddAsync(user, ct);
 
-        return Result<AuthResponse>.Ok(await TokenFactory.IssueAsync(user, jwt, refreshTokens, ct));
+        var origin = (config["Frontend:Origin"] ?? "http://localhost:3001").Split(',')[0].Trim();
+        var link = $"{origin}/verify-email?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(rawToken)}";
+
+        try
+        {
+            await emailSender.SendAsync(new EmailMessage(
+                user.Email,
+                "Verify your Fana email address",
+                $"Hi {user.DisplayName}, welcome to Fana! Click the link below to verify your email and finish signing up. " +
+                $"This link expires in 1 hour and can only be used once.\n\n{link}\n\n" +
+                "If you didn't create this account, you can safely ignore this email."), ct);
+        }
+        catch (Exception ex)
+        {
+            // Unlike forgot-password, this is safe to surface as a log-only failure without
+            // an enumeration risk (the caller already knows it's their own brand-new account) —
+            // they can always retry via resend-verification instead of being stuck.
+            logger.LogError(ex, "Failed to send verification email to {Email}", user.Email);
+        }
+
+        return Result<RegisterResponse>.Ok(new RegisterResponse(
+            "Account created. Check your email to verify your address and finish signing up.", user.Email));
     }
 }
 
@@ -102,6 +130,12 @@ public class LoginHandler(
             user.LockoutEndsAt = null;
             await users.UpdateAsync(user, ct);
         }
+
+        // Checked only after the password verifies — revealing "unverified" before that would
+        // let an attacker distinguish a real unverified email from a nonexistent one on a wrong
+        // password. A distinct code (not the generic message) lets the frontend offer a resend.
+        if (!user.EmailVerified)
+            return Result<AuthResponse>.Fail("EMAIL_NOT_VERIFIED");
 
         return Result<AuthResponse>.Ok(await TokenFactory.IssueAsync(user, jwt, refreshTokens, ct));
     }
@@ -206,6 +240,88 @@ public class ResetPasswordHandler(IUserRepository users, IPasswordHasher hasher)
         user.PasswordResetTokenHash = null;   // consume the token (single use)
         user.PasswordResetExpiresAt = null;
         await users.UpdateAsync(user, ct);
+        return Result<bool>.Ok(true);
+    }
+}
+
+// ---- Verify email ----
+public record VerifyEmailCommand(VerifyEmailRequest Request) : IRequest<Result<AuthResponse>>;
+
+public class VerifyEmailHandler(
+    IUserRepository users,
+    IPasswordHasher hasher,
+    IJwtService jwt,
+    IRefreshTokenRepository refreshTokens) : IRequestHandler<VerifyEmailCommand, Result<AuthResponse>>
+{
+    public async Task<Result<AuthResponse>> Handle(VerifyEmailCommand cmd, CancellationToken ct)
+    {
+        var req = cmd.Request;
+        var user = await users.GetByEmailAsync(req.Email, ct);
+
+        // Same generic-failure shape as ResetPasswordHandler. A second click on an already-used
+        // link also lands here, since the token is nulled out on first success below.
+        if (user is null
+            || string.IsNullOrEmpty(user.EmailVerificationTokenHash)
+            || user.EmailVerificationExpiresAt is null
+            || user.EmailVerificationExpiresAt < DateTime.UtcNow
+            || string.IsNullOrWhiteSpace(req.Token)
+            || !hasher.Verify(req.Token, user.EmailVerificationTokenHash))
+        {
+            return Result<AuthResponse>.Fail("Invalid or expired verification link.");
+        }
+
+        user.EmailVerified = true;
+        user.EmailVerificationTokenHash = null;   // consume the token (single use)
+        user.EmailVerificationExpiresAt = null;
+        await users.UpdateAsync(user, ct);
+
+        // Verification is the final stage of registration — log the user straight in.
+        return Result<AuthResponse>.Ok(await TokenFactory.IssueAsync(user, jwt, refreshTokens, ct));
+    }
+}
+
+// ---- Resend verification ----
+public record ResendVerificationCommand(ResendVerificationRequest Request) : IRequest<Result<bool>>;
+
+public class ResendVerificationHandler(
+    IUserRepository users,
+    IPasswordHasher hasher,
+    IEmailSender emailSender,
+    IConfiguration config,
+    ILogger<ResendVerificationHandler> logger) : IRequestHandler<ResendVerificationCommand, Result<bool>>
+{
+    public async Task<Result<bool>> Handle(ResendVerificationCommand cmd, CancellationToken ct)
+    {
+        var user = await users.GetByEmailAsync(cmd.Request.Email, ct);
+
+        // Anti-enumeration, same as ForgotPasswordHandler — also silently no-ops for an
+        // already-verified account rather than confirming it exists.
+        if (user is not null && !user.EmailVerified)
+        {
+            var rawToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+            user.EmailVerificationTokenHash = hasher.Hash(rawToken);
+            user.EmailVerificationExpiresAt = DateTime.UtcNow.AddHours(1);
+            await users.UpdateAsync(user, ct);
+
+            var origin = (config["Frontend:Origin"] ?? "http://localhost:3001").Split(',')[0].Trim();
+            var link = $"{origin}/verify-email?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(rawToken)}";
+
+            try
+            {
+                await emailSender.SendAsync(new EmailMessage(
+                    user.Email,
+                    "Verify your Fana email address",
+                    $"Hi {user.DisplayName}, click the link below to verify your email. " +
+                    $"This link expires in 1 hour and can only be used once.\n\n{link}\n\n" +
+                    "If you didn't request this, you can safely ignore this email."), ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to resend verification email to {Email}", user.Email);
+            }
+        }
+
+        // Always report success so the endpoint can't be used to enumerate accounts.
         return Result<bool>.Ok(true);
     }
 }

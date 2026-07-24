@@ -36,10 +36,9 @@ function renderPage() {
   );
 }
 
-const AUTH_RESPONSE = {
-  accessToken: "access-token",
-  refreshToken: "refresh-token",
-  user: { id: "1", email: "user@test.local", displayName: "User", preferredLanguage: 0 },
+const REGISTER_RESPONSE = {
+  message: "Account created. Check your email to verify your address and finish signing up.",
+  email: "user@test.local",
 };
 
 function fillAndSubmit({ name = "User", email = "user@test.local", password = "correctpass123", confirm = password }: {
@@ -60,15 +59,15 @@ describe("RegisterPage", () => {
     window.history.pushState({}, "", "/register");
   });
 
-  it("registers and redirects to /dashboard on success, without fetching any org branding", async () => {
-    mockedApi.register.mockResolvedValue(AUTH_RESPONSE);
-    mockedApi.me.mockResolvedValue(AUTH_RESPONSE.user as never);
+  it("registers and redirects to /check-email on success, without fetching any org branding", async () => {
+    mockedApi.register.mockResolvedValue(REGISTER_RESPONSE);
     renderPage();
 
     fillAndSubmit();
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/check-email?email=user%40test.local"));
     expect(mockedApi.getOrganization).not.toHaveBeenCalled();
+    expect(mockedApi.me).not.toHaveBeenCalled();
   });
 
   it("shows an alert on duplicate email", async () => {

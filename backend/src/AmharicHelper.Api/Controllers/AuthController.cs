@@ -43,4 +43,18 @@ public class AuthController(IMediator mediator) : ApiControllerBase(mediator)
         var result = await Mediator.Send(new ResetPasswordCommand(request));
         return result.Success ? Ok(new { message = "Password updated." }) : BadRequest(new { error = result.Error });
     }
+
+    [HttpPost("verify-email")]
+    public async Task<IActionResult> VerifyEmail(VerifyEmailRequest request)
+    {
+        var result = await Mediator.Send(new VerifyEmailCommand(request));
+        return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
+    }
+
+    [HttpPost("resend-verification")]
+    public async Task<IActionResult> ResendVerification(ResendVerificationRequest request)
+    {
+        await Mediator.Send(new ResendVerificationCommand(request));
+        return Ok(new { message = "If the email exists and is unverified, a new verification link has been sent." });
+    }
 }

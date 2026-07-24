@@ -16,10 +16,11 @@ public class AuthCommandsTests
     private sealed class FakeUserRepository : IUserRepository
     {
         public User? ToReturn { get; set; }
+        public User? Added { get; private set; }
         public User? Updated { get; private set; }
         public Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult(ToReturn);
         public Task<User?> GetByEmailAsync(string email, CancellationToken ct = default) => Task.FromResult(ToReturn);
-        public Task AddAsync(User user, CancellationToken ct = default) => Task.CompletedTask;
+        public Task AddAsync(User user, CancellationToken ct = default) { Added = user; return Task.CompletedTask; }
         public Task UpdateAsync(User user, CancellationToken ct = default) { Updated = user; return Task.CompletedTask; }
     }
 
@@ -51,6 +52,17 @@ public class AuthCommandsTests
         public string CreateRefreshToken() => "fake-refresh-token";
     }
 
+    private sealed class FakeOrganizationRepository : IOrganizationRepository
+    {
+        public Task<Organization?> GetBySlugAsync(string slug, CancellationToken ct = default) => Task.FromResult<Organization?>(null);
+        public Task<Organization?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Organization?>(null);
+        public Task<IReadOnlyList<Organization>> ListAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Organization>>(new List<Organization>());
+        public Task AddAsync(Organization organization, CancellationToken ct = default) => Task.CompletedTask;
+        public Task UpdateAsync(Organization organization, CancellationToken ct = default) => Task.CompletedTask;
+        public Task SetActiveAsync(Guid id, bool active, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<OrganizationStatsDto> GetStatsAsync(Guid organizationId, CancellationToken ct = default) => Task.FromResult<OrganizationStatsDto>(null!);
+    }
+
     private sealed class FakeRefreshTokenRepository : IRefreshTokenRepository
     {
         public Task<RefreshToken?> GetByTokenAsync(string token, CancellationToken ct = default) => Task.FromResult<RefreshToken?>(null);
@@ -61,7 +73,57 @@ public class AuthCommandsTests
     // Reuse the real hasher, matching PasswordHasherTests.cs's existing convention.
     private static readonly PasswordHasher Hasher = new();
 
+    // ---- RegisterHandler ----
+
+    [Fact]
+    public async Task Register_creates_an_unverified_user_and_sends_a_verification_email_without_issuing_tokens()
+    {
+        var users = new FakeUserRepository { ToReturn = null };
+        var emailSender = new FakeEmailSender();
+        var handler = new RegisterHandler(users, new FakeOrganizationRepository(), Hasher, emailSender, Config(), NullLogger<RegisterHandler>.Instance);
+
+        var result = await handler.Handle(
+            new RegisterCommand(new RegisterRequest("new@test.local", "password123", "New User", AmharicHelper.Domain.Enums.Language.Hebrew)), default);
+
+        Assert.True(result.Success);
+        Assert.Equal("new@test.local", result.Value!.Email);
+
+        Assert.NotNull(users.Added);
+        Assert.False(users.Added!.EmailVerified);
+        Assert.NotNull(users.Added.EmailVerificationTokenHash);
+        Assert.NotNull(users.Added.EmailVerificationExpiresAt);
+
+        Assert.Single(emailSender.Sent);
+        Assert.Equal("new@test.local", emailSender.Sent[0].ToEmail);
+    }
+
+    [Fact]
+    public async Task Register_rejects_a_duplicate_email()
+    {
+        var users = new FakeUserRepository { ToReturn = new User { Email = "new@test.local" } };
+        var handler = new RegisterHandler(users, new FakeOrganizationRepository(), Hasher, new FakeEmailSender(), Config(), NullLogger<RegisterHandler>.Instance);
+
+        var result = await handler.Handle(
+            new RegisterCommand(new RegisterRequest("new@test.local", "password123", "New User", AmharicHelper.Domain.Enums.Language.Hebrew)), default);
+
+        Assert.False(result.Success);
+        Assert.Null(users.Added);
+    }
+
     // ---- LoginHandler ----
+
+    [Fact]
+    public async Task Login_rejects_an_unverified_account()
+    {
+        var user = new User { Email = "user@test.local", PasswordHash = Hasher.Hash("correct-password"), EmailVerified = false };
+        var users = new FakeUserRepository { ToReturn = user };
+        var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig());
+
+        var result = await handler.Handle(new LoginCommand(new LoginRequest("user@test.local", "correct-password")), default);
+
+        Assert.False(result.Success);
+        Assert.Equal("EMAIL_NOT_VERIFIED", result.Error);
+    }
 
     [Fact]
     public async Task Login_succeeds_and_resets_prior_failed_attempts()
@@ -72,6 +134,7 @@ public class AuthCommandsTests
             PasswordHash = Hasher.Hash("correct-password"),
             FailedLoginAttempts = 3,
             LockoutEndsAt = null,
+            EmailVerified = true,
         };
         var users = new FakeUserRepository { ToReturn = user };
         var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig());
@@ -87,7 +150,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task Login_wrong_password_increments_failed_attempts_without_locking()
     {
-        var user = new User { Email = "user@test.local", PasswordHash = Hasher.Hash("correct-password") };
+        var user = new User { Email = "user@test.local", PasswordHash = Hasher.Hash("correct-password"), EmailVerified = true };
         var users = new FakeUserRepository { ToReturn = user };
         var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig(maxAttempts: 5));
 
@@ -102,7 +165,7 @@ public class AuthCommandsTests
     [Fact]
     public async Task Login_reaching_the_attempt_threshold_locks_the_account()
     {
-        var user = new User { Email = "user@test.local", PasswordHash = Hasher.Hash("correct-password"), FailedLoginAttempts = 4 };
+        var user = new User { Email = "user@test.local", PasswordHash = Hasher.Hash("correct-password"), FailedLoginAttempts = 4, EmailVerified = true };
         var users = new FakeUserRepository { ToReturn = user };
         var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig(maxAttempts: 5, lockoutMinutes: 15));
 
@@ -125,6 +188,7 @@ public class AuthCommandsTests
             PasswordHash = Hasher.Hash("correct-password"),
             FailedLoginAttempts = 5,
             LockoutEndsAt = DateTime.UtcNow.AddMinutes(10),
+            EmailVerified = true,
         };
         var users = new FakeUserRepository { ToReturn = user };
         var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig());
@@ -146,6 +210,7 @@ public class AuthCommandsTests
             PasswordHash = Hasher.Hash("correct-password"),
             FailedLoginAttempts = 5,
             LockoutEndsAt = DateTime.UtcNow.AddMinutes(-1),
+            EmailVerified = true,
         };
         var users = new FakeUserRepository { ToReturn = user };
         var handler = new LoginHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), LoginConfig());
@@ -291,5 +356,134 @@ public class AuthCommandsTests
         // Single-use: the token must be consumed so the same link can never be replayed.
         Assert.Null(users.Updated.PasswordResetTokenHash);
         Assert.Null(users.Updated.PasswordResetExpiresAt);
+    }
+
+    // ---- VerifyEmailHandler ----
+
+    [Fact]
+    public async Task VerifyEmail_succeeds_and_issues_tokens_for_a_valid_token()
+    {
+        var rawToken = "the-real-token";
+        var user = new User
+        {
+            Email = "user@test.local",
+            EmailVerified = false,
+            EmailVerificationTokenHash = Hasher.Hash(rawToken),
+            EmailVerificationExpiresAt = DateTime.UtcNow.AddHours(1),
+        };
+        var users = new FakeUserRepository { ToReturn = user };
+        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository());
+
+        var result = await handler.Handle(new VerifyEmailCommand(new VerifyEmailRequest("user@test.local", rawToken)), default);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Value!.AccessToken);
+        Assert.NotNull(users.Updated);
+        Assert.True(users.Updated!.EmailVerified);
+        // Single-use: the token must be consumed so the same link can never be replayed.
+        Assert.Null(users.Updated.EmailVerificationTokenHash);
+        Assert.Null(users.Updated.EmailVerificationExpiresAt);
+    }
+
+    [Fact]
+    public async Task VerifyEmail_fails_for_expired_token()
+    {
+        var rawToken = "the-real-token";
+        var user = new User
+        {
+            Email = "user@test.local",
+            EmailVerified = false,
+            EmailVerificationTokenHash = Hasher.Hash(rawToken),
+            EmailVerificationExpiresAt = DateTime.UtcNow.AddMinutes(-1),
+        };
+        var users = new FakeUserRepository { ToReturn = user };
+        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository());
+
+        var result = await handler.Handle(new VerifyEmailCommand(new VerifyEmailRequest("user@test.local", rawToken)), default);
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public async Task VerifyEmail_fails_for_wrong_token()
+    {
+        var user = new User
+        {
+            Email = "user@test.local",
+            EmailVerified = false,
+            EmailVerificationTokenHash = Hasher.Hash("the-real-token"),
+            EmailVerificationExpiresAt = DateTime.UtcNow.AddHours(1),
+        };
+        var users = new FakeUserRepository { ToReturn = user };
+        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository());
+
+        var result = await handler.Handle(new VerifyEmailCommand(new VerifyEmailRequest("user@test.local", "a-different-token")), default);
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public async Task VerifyEmail_fails_when_already_verified_and_token_consumed()
+    {
+        var user = new User
+        {
+            Email = "user@test.local",
+            EmailVerified = true,
+            EmailVerificationTokenHash = null,
+            EmailVerificationExpiresAt = null,
+        };
+        var users = new FakeUserRepository { ToReturn = user };
+        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository());
+
+        var result = await handler.Handle(new VerifyEmailCommand(new VerifyEmailRequest("user@test.local", "anything")), default);
+
+        Assert.False(result.Success);
+    }
+
+    // ---- ResendVerificationHandler ----
+
+    [Fact]
+    public async Task ResendVerification_unknown_email_sends_nothing_but_still_reports_success()
+    {
+        var users = new FakeUserRepository { ToReturn = null };
+        var emailSender = new FakeEmailSender();
+        var handler = new ResendVerificationHandler(users, Hasher, emailSender, Config(), NullLogger<ResendVerificationHandler>.Instance);
+
+        var result = await handler.Handle(new ResendVerificationCommand(new ResendVerificationRequest("nobody@test.local")), default);
+
+        Assert.True(result.Success);
+        Assert.Empty(emailSender.Sent);
+    }
+
+    [Fact]
+    public async Task ResendVerification_already_verified_email_sends_nothing_but_still_reports_success()
+    {
+        var user = new User { Email = "user@test.local", EmailVerified = true };
+        var users = new FakeUserRepository { ToReturn = user };
+        var emailSender = new FakeEmailSender();
+        var handler = new ResendVerificationHandler(users, Hasher, emailSender, Config(), NullLogger<ResendVerificationHandler>.Instance);
+
+        var result = await handler.Handle(new ResendVerificationCommand(new ResendVerificationRequest("user@test.local")), default);
+
+        Assert.True(result.Success);
+        Assert.Empty(emailSender.Sent);
+        Assert.Null(users.Updated);
+    }
+
+    [Fact]
+    public async Task ResendVerification_known_unverified_email_sends_exactly_one_email_with_a_hashed_stored_token()
+    {
+        var user = new User { Email = "user@test.local", DisplayName = "User", EmailVerified = false };
+        var users = new FakeUserRepository { ToReturn = user };
+        var emailSender = new FakeEmailSender();
+        var handler = new ResendVerificationHandler(users, Hasher, emailSender, Config(), NullLogger<ResendVerificationHandler>.Instance);
+
+        var result = await handler.Handle(new ResendVerificationCommand(new ResendVerificationRequest("user@test.local")), default);
+
+        Assert.True(result.Success);
+        Assert.Single(emailSender.Sent);
+        Assert.NotNull(users.Updated);
+        Assert.NotNull(users.Updated!.EmailVerificationTokenHash);
+        Assert.NotNull(users.Updated.EmailVerificationExpiresAt);
     }
 }

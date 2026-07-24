@@ -23,4 +23,10 @@ public class User
     // Account lockout after repeated failed logins (see LoginHandler).
     public int FailedLoginAttempts { get; set; }
     public DateTime? LockoutEndsAt { get; set; }
+
+    // Email verification (see RegisterHandler/VerifyEmailHandler). Single-use, time-limited
+    // token; only the hash is persisted, same pattern as PasswordResetTokenHash.
+    public bool EmailVerified { get; set; }
+    public string? EmailVerificationTokenHash { get; set; }
+    public DateTime? EmailVerificationExpiresAt { get; set; }
 }

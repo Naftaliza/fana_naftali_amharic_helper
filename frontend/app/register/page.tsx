@@ -41,8 +41,9 @@ export default function RegisterPage() {
     try {
       // Fall back to the persisted slug directly: a fast submit can beat the branding
       // fetch that populates `organization`, and the slug is known synchronously either way.
-      await register(email, password, name, LANGUAGE_ENUM[language], organization?.slug ?? getPersistedOrgSlug());
-      router.push("/dashboard");
+      const { email: confirmedEmail } = await register(
+        email, password, name, LANGUAGE_ENUM[language], organization?.slug ?? getPersistedOrgSlug());
+      router.push(`/check-email?email=${encodeURIComponent(confirmedEmail)}`);
     } catch (err) {
       const msg = (err as Error).message;
       setError(ERROR_MESSAGE_KEYS[msg] ? t(ERROR_MESSAGE_KEYS[msg]) : msg);

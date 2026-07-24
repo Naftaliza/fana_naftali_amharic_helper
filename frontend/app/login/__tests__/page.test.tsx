@@ -19,10 +19,10 @@ jest.mock("next/link", () => {
 // remember-me storage-location assertions below exercise the actual implementation.
 jest.mock("@/lib/api", () => {
   const actual = jest.requireActual("@/lib/api");
-  return { ...actual, api: { login: jest.fn(), me: jest.fn() } };
+  return { ...actual, api: { login: jest.fn(), me: jest.fn(), resendVerification: jest.fn() } };
 });
 
-const mockedApi = api as jest.Mocked<Pick<typeof api, "login" | "me">>;
+const mockedApi = api as jest.Mocked<Pick<typeof api, "login" | "me" | "resendVerification">>;
 
 function renderPage() {
   return render(
@@ -68,6 +68,23 @@ describe("LoginPage", () => {
     fireEvent.submit(screen.getByLabelText(/^password$|^סיסמה$/i).closest("form")!);
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Invalid email or password."));
+  });
+
+  it("shows a resend-verification prompt (not the generic error) for an unverified account", async () => {
+    mockedApi.login.mockRejectedValue(new Error("EMAIL_NOT_VERIFIED"));
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText(/email|דוא"ל/i), { target: { value: "user@test.local" } });
+    fireEvent.change(screen.getByLabelText(/^password$|^סיסמה$/i), { target: { value: "correct-password" } });
+    fireEvent.submit(screen.getByLabelText(/^password$|^סיסמה$/i).closest("form")!);
+
+    await waitFor(() => expect(screen.getByRole("alert")).not.toHaveTextContent("EMAIL_NOT_VERIFIED"));
+    const resendButton = await screen.findByRole("button", { name: /resend verification|שליחה חוזרת/i });
+
+    mockedApi.resendVerification.mockResolvedValue({ message: "sent" });
+    fireEvent.click(resendButton);
+
+    await waitFor(() => expect(mockedApi.resendVerification).toHaveBeenCalledWith("user@test.local"));
   });
 
   it("toggles password visibility", () => {

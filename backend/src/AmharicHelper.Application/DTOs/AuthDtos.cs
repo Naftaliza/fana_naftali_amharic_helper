@@ -10,6 +10,12 @@ public record LoginRequest(string Email, string Password);
 public record RefreshRequest(string RefreshToken);
 public record ForgotPasswordRequest(string Email);
 public record ResetPasswordRequest(string Email, string ResetToken, string NewPassword);
+public record VerifyEmailRequest(string Email, string Token);
+public record ResendVerificationRequest(string Email);
+
+/// <summary>Returned by registration now that no tokens are issued immediately — the caller
+/// must wait for the emailed verification link (see VerifyEmailRequest).</summary>
+public record RegisterResponse(string Message, string Email);
 
 public record AuthResponse(string AccessToken, string RefreshToken, UserDto User);
 
