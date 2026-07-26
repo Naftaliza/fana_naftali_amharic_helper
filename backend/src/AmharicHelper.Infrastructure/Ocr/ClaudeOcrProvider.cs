@@ -38,7 +38,7 @@ public class ClaudeOcrProvider(
 
         var request = new
         {
-            model = _opts.AnthropicModel,
+            model = _opts.AnthropicOcrModel,
             max_tokens = 4096,
             messages = new[]
             {
@@ -69,6 +69,8 @@ public class ClaudeOcrProvider(
         }
 
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        Ai.AnthropicResponseHelpers.LogUsage(doc.RootElement, logger, "ocr");
+        Ai.AnthropicResponseHelpers.ThrowIfTruncated(doc.RootElement, logger, "ocr");
         return doc.RootElement.GetProperty("content")[0].GetProperty("text").GetString() ?? string.Empty;
     }
 

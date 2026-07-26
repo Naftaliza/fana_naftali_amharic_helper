@@ -17,7 +17,11 @@ public class DocumentsController(IMediator mediator) : ApiControllerBase(mediato
     /// </summary>
     private const int MaxPages = 10;
 
-    /// <summary>Upload a document of one or more pages (PDF/JPG/PNG). Runs OCR on upload.</summary>
+    /// <summary>
+    /// Upload a document of one or more pages (PDF/JPG/PNG). Pages are saved immediately; OCR then
+    /// runs in the background (see DocumentProcessor). Returns 202 with the document id right away
+    /// — poll GET /documents/{id} (Status/ProcessedPages/TotalPages) for progress and completion.
+    /// </summary>
     [HttpPost]
     [RequestSizeLimit(60_000_000)]
     public async Task<IActionResult> Upload(List<IFormFile> files)
@@ -26,7 +30,8 @@ public class DocumentsController(IMediator mediator) : ApiControllerBase(mediato
         if (error is not null) return BadRequest(new { error });
 
         var result = await Mediator.Send(new UploadDocumentCommand(CurrentUserId, pages!));
-        return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
+        if (!result.Success) return BadRequest(new { error = result.Error });
+        return AcceptedAtAction(nameof(Get), new { id = result.Value!.Id }, result.Value);
     }
 
     [HttpGet]

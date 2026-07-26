@@ -7,20 +7,21 @@ public record DocumentSummaryDto(
     string FileName,
     string ContentType,
     DateTime UploadedAt,
-    bool HasAnalysis);
+    bool HasAnalysis,
+    DocumentProcessingStatus Status);
 
 /// <summary>
-/// Result of a (possibly multi-page) upload. <paramref name="PageCount"/> is the number of pages
-/// whose text was kept; <paramref name="SkippedPages"/> is how many pages were dropped because they
-/// were blank/unreadable, so the UI can warn the user (e.g. "page 4 couldn't be read").
+/// Result of queuing a (possibly multi-page) upload for background OCR. The pages haven't been
+/// transcribed yet at this point — Status starts Pending and the client polls
+/// GET /documents/{id} for progress (ProcessedPages/TotalPages) and completion.
 /// </summary>
 public record UploadDocumentResultDto(
     Guid Id,
     string FileName,
     string ContentType,
     DateTime UploadedAt,
-    int PageCount,
-    int SkippedPages);
+    DocumentProcessingStatus Status,
+    int TotalPages);
 
 /// <summary>One uploaded page: its original bytes and metadata, before OCR.</summary>
 public record UploadPage(string FileName, string ContentType, byte[] Content);
@@ -31,7 +32,12 @@ public record DocumentDetailDto(
     string ContentType,
     string? OcrText,
     DateTime UploadedAt,
-    DocumentAnalysisResult? Analysis);
+    DocumentAnalysisResult? Analysis,
+    DocumentProcessingStatus Status,
+    int ProcessedPages,
+    int TotalPages,
+    int SkippedPages,
+    string? ProcessingError);
 
 public record ChatMessageDto(Guid Id, ChatRole Role, string Content, DateTime CreatedAt);
 

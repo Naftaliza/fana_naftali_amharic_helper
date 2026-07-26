@@ -41,8 +41,14 @@ services:
       Email__Smtp__Username: "apikey"
       Email__Smtp__Password: "${SENDGRID_API_KEY:-}"
       Email__Smtp__From: "${SENDGRID_FROM_EMAIL:-}"
+      # Named volume below (not the container's own filesystem) so uploaded page images survive
+      # `docker compose down`/rebuilds locally, the same way pg-data already does for Postgres.
+      # See DEPLOY.md "Uploaded files" for the equivalent Railway Volume in production.
+      Storage__RootPath: "/data/uploads"
     ports:
       - "5080:8080"
+    volumes:
+      - uploads-data:/data/uploads
 
   frontend:
     build:
@@ -56,3 +62,4 @@ services:
 
 volumes:
   pg-data:
+  uploads-data:

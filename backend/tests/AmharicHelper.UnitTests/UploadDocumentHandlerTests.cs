@@ -11,38 +11,32 @@ public class UploadDocumentHandlerTests
 {
     // ---- Test doubles (the project has no mocking library) ----
 
-    /// <summary>OCR fake keyed by the page's content type tag (we encode behavior in the bytes).</summary>
-    private sealed class FakeOcr : IOcrProvider
-    {
-        // Map: page marker byte -> result. 1=text, 0=blank(empty), 2=throw transient, 3=throw config.
-        public List<byte[]> Seen { get; } = new();
-
-        public Task<string> ExtractTextAsync(byte[] fileBytes, string contentType, CancellationToken ct = default)
-        {
-            Seen.Add(fileBytes);
-            return fileBytes[0] switch
-            {
-                1 => Task.FromResult($"text-{fileBytes[1]}"),
-                0 => Task.FromResult(""),                                   // blank page
-                2 => throw new InvalidOperationException("OCR failed: 500 InternalServerError"),
-                3 => throw new InvalidOperationException("Anthropic API key is not configured (Ai:AnthropicApiKey)."),
-                _ => Task.FromResult("?"),
-            };
-        }
-    }
-
     private sealed class FakeStorage : IFileStorage
     {
         public List<string> Saved { get; } = new();
         public List<string> Deleted { get; } = new();
+        public Dictionary<string, byte[]> Contents { get; } = new();
         public Task<string> SaveAsync(byte[] content, string fileName, CancellationToken ct = default)
         {
             var path = $"/store/{Saved.Count}_{fileName}";
             Saved.Add(path);
+            Contents[path] = content;
             return Task.FromResult(path);
         }
-        public Task<byte[]> ReadAsync(string path, CancellationToken ct = default) => Task.FromResult(Array.Empty<byte>());
+        public Task<byte[]> ReadAsync(string path, CancellationToken ct = default) =>
+            Task.FromResult(Contents.TryGetValue(path, out var b) ? b : Array.Empty<byte>());
         public Task DeleteAsync(string path, CancellationToken ct = default) { Deleted.Add(path); return Task.CompletedTask; }
+    }
+
+    private sealed class FakeQueue : IDocumentProcessingQueue
+    {
+        public List<Guid> Enqueued { get; } = new();
+        public void Enqueue(Guid documentId) => Enqueued.Add(documentId);
+    }
+
+    private sealed class NoopEventTracker : IEventTracker
+    {
+        public Task TrackAsync(string eventName, Guid? userId = null, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class FakeDocs : IDocumentRepository
@@ -52,6 +46,8 @@ public class UploadDocumentHandlerTests
         public List<Guid> DeletedIds { get; } = new();
         public Task<Document?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult(ToReturn);
         public Task<IReadOnlyList<Document>> ListByUserAsync(Guid userId, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<Document>>(Array.Empty<Document>());
+        public Task<IReadOnlyList<Document>> ListUnfinishedAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<Document>>(Array.Empty<Document>());
         public Task AddAsync(Document document, CancellationToken ct = default) { Added = document; return Task.CompletedTask; }
         public Task UpdateAsync(Document document, CancellationToken ct = default) => Task.CompletedTask;
@@ -73,105 +69,46 @@ public class UploadDocumentHandlerTests
         public Task DeleteByDocumentIdAsync(Guid d, CancellationToken ct = default) => Task.CompletedTask;
     }
 
-    private static UploadPage Page(byte marker, byte id = 0) =>
-        new($"p{id}.jpg", "image/jpeg", new byte[] { marker, id });
+    private static UploadPage Page(byte id) => new($"p{id}.jpg", "image/jpeg", new byte[] { id });
 
-    // ---- Tests ----
-
-    [Fact]
-    public async Task Single_page_has_no_page_header_and_one_file()
-    {
-        var ocr = new FakeOcr(); var storage = new FakeStorage(); var docs = new FakeDocs();
-        var handler = new UploadDocumentHandler(storage, ocr, docs);
-
-        var result = await handler.Handle(new UploadDocumentCommand(Guid.NewGuid(), new[] { Page(1, 7) }), default);
-
-        Assert.True(result.Success);
-        Assert.Equal("text-7", docs.Added!.OcrText);          // no "--- Page ---" header
-        Assert.Single(storage.Saved);
-        Assert.Single(docs.Added.PagePaths);
-        Assert.Equal(0, result.Value!.SkippedPages);
-        Assert.Equal(1, result.Value.PageCount);
-    }
+    // ---- Tests: upload now just saves every page and queues processing — OCR itself is
+    // DocumentProcessor's job, tested separately in DocumentProcessorTests. ----
 
     [Fact]
-    public async Task Multiple_pages_are_numbered_and_concatenated_in_order()
+    public async Task Saves_every_page_and_starts_Pending()
     {
-        var ocr = new FakeOcr(); var storage = new FakeStorage(); var docs = new FakeDocs();
-        var handler = new UploadDocumentHandler(storage, ocr, docs);
+        var storage = new FakeStorage(); var docs = new FakeDocs(); var queue = new FakeQueue();
+        var handler = new UploadDocumentHandler(storage, docs, queue, new NoopEventTracker());
 
         var result = await handler.Handle(
-            new UploadDocumentCommand(Guid.NewGuid(), new[] { Page(1, 1), Page(1, 2), Page(1, 3) }), default);
+            new UploadDocumentCommand(Guid.NewGuid(), new[] { Page(1), Page(2), Page(3) }), default);
 
         Assert.True(result.Success);
-        Assert.Equal("--- Page 1 ---\n\ntext-1\n\n--- Page 2 ---\n\ntext-2\n\n--- Page 3 ---\n\ntext-3",
-            docs.Added!.OcrText);
         Assert.Equal(3, storage.Saved.Count);
-        Assert.Equal(3, docs.Added.PagePaths.Length);
+        Assert.Equal(3, docs.Added!.PagePaths.Length);
+        Assert.Equal(3, docs.Added.PageContentTypes.Length);
+        Assert.Equal(DocumentProcessingStatus.Pending, docs.Added.Status);
+        Assert.Equal(3, docs.Added.TotalPages);
+        Assert.Equal(DocumentProcessingStatus.Pending, result.Value!.Status);
+        Assert.Equal(3, result.Value.TotalPages);
     }
 
     [Fact]
-    public async Task Blank_page_is_skipped_and_remaining_pages_renumbered()
+    public async Task Queues_the_new_document_for_background_processing()
     {
-        var ocr = new FakeOcr(); var storage = new FakeStorage(); var docs = new FakeDocs();
-        var handler = new UploadDocumentHandler(storage, ocr, docs);
-
-        var result = await handler.Handle(
-            new UploadDocumentCommand(Guid.NewGuid(), new[] { Page(1, 1), Page(0, 2), Page(1, 3) }), default);
+        var queue = new FakeQueue();
+        var handler = new UploadDocumentHandler(new FakeStorage(), new FakeDocs(), queue, new NoopEventTracker());
+        var result = await handler.Handle(new UploadDocumentCommand(Guid.NewGuid(), new[] { Page(1) }), default);
 
         Assert.True(result.Success);
-        Assert.Equal("--- Page 1 ---\n\ntext-1\n\n--- Page 2 ---\n\ntext-3", docs.Added!.OcrText);
-        Assert.Equal(2, storage.Saved.Count);               // only the two readable pages saved
-        Assert.Equal(1, result.Value!.SkippedPages);
-    }
-
-    [Fact]
-    public async Task Transient_page_failure_is_skipped_but_batch_continues()
-    {
-        var ocr = new FakeOcr(); var storage = new FakeStorage(); var docs = new FakeDocs();
-        var handler = new UploadDocumentHandler(storage, ocr, docs);
-
-        var result = await handler.Handle(
-            new UploadDocumentCommand(Guid.NewGuid(), new[] { Page(2, 1), Page(1, 2) }), default);
-
-        Assert.True(result.Success);
-        Assert.Equal("text-2", docs.Added!.OcrText);
-        Assert.Equal(1, result.Value!.SkippedPages);
-    }
-
-    [Fact]
-    public async Task All_pages_blank_fails_and_saves_nothing()
-    {
-        var ocr = new FakeOcr(); var storage = new FakeStorage(); var docs = new FakeDocs();
-        var handler = new UploadDocumentHandler(storage, ocr, docs);
-
-        var result = await handler.Handle(
-            new UploadDocumentCommand(Guid.NewGuid(), new[] { Page(0, 1), Page(0, 2) }), default);
-
-        Assert.False(result.Success);
-        Assert.Empty(storage.Saved);
-        Assert.Null(docs.Added);
-    }
-
-    [Fact]
-    public async Task Config_error_fails_whole_batch_and_saves_nothing()
-    {
-        var ocr = new FakeOcr(); var storage = new FakeStorage(); var docs = new FakeDocs();
-        var handler = new UploadDocumentHandler(storage, ocr, docs);
-
-        var result = await handler.Handle(
-            new UploadDocumentCommand(Guid.NewGuid(), new[] { Page(3, 1), Page(1, 2) }), default);
-
-        Assert.False(result.Success);
-        Assert.Contains("API key", result.Error);
-        Assert.Empty(storage.Saved);   // critically: no orphaned files for a doomed batch
-        Assert.Null(docs.Added);
+        Assert.Single(queue.Enqueued);
+        Assert.Equal(result.Value!.Id, queue.Enqueued[0]);
     }
 
     [Fact]
     public async Task Empty_page_list_fails()
     {
-        var handler = new UploadDocumentHandler(new FakeStorage(), new FakeOcr(), new FakeDocs());
+        var handler = new UploadDocumentHandler(new FakeStorage(), new FakeDocs(), new FakeQueue(), new NoopEventTracker());
         var result = await handler.Handle(new UploadDocumentCommand(Guid.NewGuid(), Array.Empty<UploadPage>()), default);
         Assert.False(result.Success);
     }

@@ -22,6 +22,7 @@ public class AuthCommandsTests
         public Task<User?> GetByEmailAsync(string email, CancellationToken ct = default) => Task.FromResult(ToReturn);
         public Task AddAsync(User user, CancellationToken ct = default) { Added = user; return Task.CompletedTask; }
         public Task UpdateAsync(User user, CancellationToken ct = default) { Updated = user; return Task.CompletedTask; }
+        public Task DeleteAsync(Guid id, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class FakeEmailSender : IEmailSender
@@ -68,6 +69,17 @@ public class AuthCommandsTests
         public Task<RefreshToken?> GetByTokenAsync(string token, CancellationToken ct = default) => Task.FromResult<RefreshToken?>(null);
         public Task AddAsync(RefreshToken token, CancellationToken ct = default) => Task.CompletedTask;
         public Task RevokeAsync(Guid id, CancellationToken ct = default) => Task.CompletedTask;
+        public Task DeleteAllForUserAsync(Guid userId, CancellationToken ct = default) => Task.CompletedTask;
+    }
+
+    private sealed class FakeEventTracker : IEventTracker
+    {
+        public List<(string Name, Guid? UserId)> Tracked { get; } = new();
+        public Task TrackAsync(string eventName, Guid? userId = null, CancellationToken ct = default)
+        {
+            Tracked.Add((eventName, userId));
+            return Task.CompletedTask;
+        }
     }
 
     // Reuse the real hasher, matching PasswordHasherTests.cs's existing convention.
@@ -80,7 +92,7 @@ public class AuthCommandsTests
     {
         var users = new FakeUserRepository { ToReturn = null };
         var emailSender = new FakeEmailSender();
-        var handler = new RegisterHandler(users, new FakeOrganizationRepository(), Hasher, emailSender, Config(), NullLogger<RegisterHandler>.Instance);
+        var handler = new RegisterHandler(users, new FakeOrganizationRepository(), Hasher, emailSender, Config(), new FakeEventTracker(), NullLogger<RegisterHandler>.Instance);
 
         var result = await handler.Handle(
             new RegisterCommand(new RegisterRequest("new@test.local", "password123", "New User", AmharicHelper.Domain.Enums.Language.Hebrew)), default);
@@ -101,7 +113,7 @@ public class AuthCommandsTests
     public async Task Register_rejects_a_duplicate_email()
     {
         var users = new FakeUserRepository { ToReturn = new User { Email = "new@test.local" } };
-        var handler = new RegisterHandler(users, new FakeOrganizationRepository(), Hasher, new FakeEmailSender(), Config(), NullLogger<RegisterHandler>.Instance);
+        var handler = new RegisterHandler(users, new FakeOrganizationRepository(), Hasher, new FakeEmailSender(), Config(), new FakeEventTracker(), NullLogger<RegisterHandler>.Instance);
 
         var result = await handler.Handle(
             new RegisterCommand(new RegisterRequest("new@test.local", "password123", "New User", AmharicHelper.Domain.Enums.Language.Hebrew)), default);
@@ -372,7 +384,7 @@ public class AuthCommandsTests
             EmailVerificationExpiresAt = DateTime.UtcNow.AddHours(1),
         };
         var users = new FakeUserRepository { ToReturn = user };
-        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository());
+        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), new FakeEventTracker());
 
         var result = await handler.Handle(new VerifyEmailCommand(new VerifyEmailRequest("user@test.local", rawToken)), default);
 
@@ -397,7 +409,7 @@ public class AuthCommandsTests
             EmailVerificationExpiresAt = DateTime.UtcNow.AddMinutes(-1),
         };
         var users = new FakeUserRepository { ToReturn = user };
-        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository());
+        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), new FakeEventTracker());
 
         var result = await handler.Handle(new VerifyEmailCommand(new VerifyEmailRequest("user@test.local", rawToken)), default);
 
@@ -415,7 +427,7 @@ public class AuthCommandsTests
             EmailVerificationExpiresAt = DateTime.UtcNow.AddHours(1),
         };
         var users = new FakeUserRepository { ToReturn = user };
-        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository());
+        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), new FakeEventTracker());
 
         var result = await handler.Handle(new VerifyEmailCommand(new VerifyEmailRequest("user@test.local", "a-different-token")), default);
 
@@ -433,7 +445,7 @@ public class AuthCommandsTests
             EmailVerificationExpiresAt = null,
         };
         var users = new FakeUserRepository { ToReturn = user };
-        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository());
+        var handler = new VerifyEmailHandler(users, Hasher, new FakeJwtService(), new FakeRefreshTokenRepository(), new FakeEventTracker());
 
         var result = await handler.Handle(new VerifyEmailCommand(new VerifyEmailRequest("user@test.local", "anything")), default);
 

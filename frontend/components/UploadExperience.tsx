@@ -49,9 +49,10 @@ export function UploadExperience() {
     setError(null);
     try {
       if (user) {
+        // Upload returns immediately (202) — OCR hasn't run yet, so page-skip info isn't known
+        // until the document page polls GET /documents/{id} and Status reaches Ready.
         const doc = await api.uploadDocument(files);
-        const q = doc.skippedPages > 0 ? `?skipped=${doc.skippedPages}` : "";
-        router.push(`/documents/${doc.id}${q}`);
+        router.push(`/documents/${doc.id}`);
       } else {
         const result = await api.trialAnalyze(files);
         incrementTrial();

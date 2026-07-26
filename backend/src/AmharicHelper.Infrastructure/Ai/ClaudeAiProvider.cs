@@ -20,12 +20,23 @@ public class ClaudeAiProvider(
     ILogger<ClaudeAiProvider> logger) : IAiProvider
 {
     private readonly AiOptions _opts = options.Value;
-    // Web defaults + accept string enum values (e.g. urgencyLevel: "Medium") and
-    // tolerate whatever date format the model emits for deadlines.
+    // Web defaults + accept string enum values (e.g. urgencyLevel: "Medium"), tolerate whatever
+    // date format the model emits for deadlines, and tolerate an array field (requiredActions,
+    // keyPoints, deadlines) coming back double-encoded as a JSON string instead of a real array.
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
     {
-        Converters = { new JsonStringEnumConverter(), new TolerantDateTimeConverter() }
+        Converters = { new JsonStringEnumConverter(), new TolerantDateTimeConverter(), new TolerantListConverterFactory() }
     };
+
+    // How many times to regenerate the whole analysis if the model's JSON comes back
+    // unparseable. Investigated live: for a heavily-nested, trilingual schema, Claude
+    // occasionally double-encodes an array field (e.g. requiredActions) as a JSON string, and
+    // rarely garbles the escaping while doing so badly enough that no amount of tolerant
+    // parsing can recover it (a genuinely corrupted byte sequence, not just an odd shape). A
+    // fresh generation reliably avoids the same slip — this is the same rationale as retrying
+    // a transient HTTP failure, just at the semantic level of "the output was bad" rather than
+    // "the request failed".
+    private const int MaxAnalyzeAttempts = 3;
 
     public async Task<DocumentAnalysisResult> AnalyzeAsync(
         string documentText, DocumentCategory category, CancellationToken ct = default)
@@ -33,23 +44,36 @@ public class ClaudeAiProvider(
         RequireKey();
 
         var system = PromptTemplates.BuildAnalysisPrompt(category);
-        // Use a forced tool call so the model returns the result as a structured JSON
-        // object (the tool's `input`) rather than free-typed text. This avoids parse
-        // failures when content contains characters that collide with JSON syntax —
-        // e.g. Hebrew abbreviations like בע"מ / עו"ד that use a straight double-quote.
-        var json = await CallToolAsync(system, $"DOCUMENT TEXT:\n{documentText}", ct);
-        try
+        JsonException? lastError = null;
+        for (var attempt = 1; attempt <= MaxAnalyzeAttempts; attempt++)
         {
-            var result = JsonSerializer.Deserialize<DocumentAnalysisResult>(json, JsonOpts);
-            if (result is null)
-                throw new InvalidOperationException("The AI returned an empty analysis.");
-            return result;
+            // Use a forced tool call so the model returns the result as a structured JSON
+            // object (the tool's `input`) rather than free-typed text. This avoids parse
+            // failures when content contains characters that collide with JSON syntax —
+            // e.g. Hebrew abbreviations like בע"מ / עו"ד that use a straight double-quote.
+            var json = await CallToolAsync(system, $"DOCUMENT TEXT:\n{documentText}", ct);
+            try
+            {
+                var result = JsonSerializer.Deserialize<DocumentAnalysisResult>(json, JsonOpts);
+                if (result is null)
+                    throw new InvalidOperationException("The AI returned an empty analysis.");
+                return result;
+            }
+            catch (JsonException ex)
+            {
+                lastError = ex;
+                // Deliberately not logging `json` — it's the model's structured translation of
+                // the uploaded document (bank/government/healthcare letters), i.e. PII, and it
+                // doesn't belong in plaintext logs. Length is enough to distinguish "empty" from
+                // "truncated".
+                logger.LogWarning(ex,
+                    "Failed to parse Claude analysis JSON ({Length} chars) on attempt {Attempt}/{Max}.",
+                    json.Length, attempt, MaxAnalyzeAttempts);
+            }
         }
-        catch (JsonException ex)
-        {
-            logger.LogError(ex, "Failed to parse Claude analysis JSON. Raw: {Raw}", json);
-            throw new InvalidOperationException("The AI returned an unparseable analysis. Please try again.");
-        }
+
+        logger.LogError(lastError, "Failed to parse Claude analysis JSON after {Max} attempts.", MaxAnalyzeAttempts);
+        throw new InvalidOperationException("The AI returned an unparseable analysis. Please try again.");
     }
 
     // A textual field localized to all three languages (mirrors LocalizedText).
@@ -139,7 +163,7 @@ public class ClaudeAiProvider(
             // Generous cap: the analysis includes full Amharic + Hebrew translations, which
             // can be long. Too low a limit truncates the JSON and makes it unparseable.
             max_tokens = 8192,
-            system,
+            system = CachedSystemBlocks(system),
             messages = new[] { new { role = "user", content = user } }
         };
 
@@ -162,8 +186,18 @@ public class ClaudeAiProvider(
         }
 
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        AnthropicResponseHelpers.LogUsage(doc.RootElement, logger, "chat");
+        AnthropicResponseHelpers.ThrowIfTruncated(doc.RootElement, logger, "chat");
         return doc.RootElement.GetProperty("content")[0].GetProperty("text").GetString() ?? string.Empty;
     }
+
+    // Wraps a system prompt as a single cached content block. BuildAnalysisPrompt's output is
+    // static per category (no per-user/per-document interpolation), so this isn't just a
+    // same-request optimization — every user analyzing e.g. a Bank document within the cache's
+    // TTL shares the same cache entry. Below Anthropic's ~1024-token minimum (the chat prompt is
+    // shorter than that) the marker is simply ignored, not harmful.
+    private static object[] CachedSystemBlocks(string system) =>
+        [new { type = "text", text = system, cache_control = new { type = "ephemeral" } }];
 
     /// <summary>
     /// Calls Anthropic with a single forced tool and returns the tool's `input` as raw JSON.
@@ -176,7 +210,7 @@ public class ClaudeAiProvider(
         {
             model = _opts.AnthropicModel,
             max_tokens = 8192,
-            system,
+            system = CachedSystemBlocks(system),
             tools = new[]
             {
                 new
@@ -209,6 +243,8 @@ public class ClaudeAiProvider(
         }
 
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        AnthropicResponseHelpers.LogUsage(doc.RootElement, logger, "analyze");
+        AnthropicResponseHelpers.ThrowIfTruncated(doc.RootElement, logger, "analyze");
         foreach (var block in doc.RootElement.GetProperty("content").EnumerateArray())
         {
             if (block.TryGetProperty("type", out var t) && t.GetString() == "tool_use"

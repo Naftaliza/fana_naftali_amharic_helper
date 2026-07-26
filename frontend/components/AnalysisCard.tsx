@@ -4,17 +4,21 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckSquare, Calendar, ListChecks, Volume2, Loader2, Play, Pause, RotateCcw } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/api";
-import { LANGUAGE_ENUM, isRtl, loc, type AnalysisResult, type UrgencyLevel } from "@/lib/types";
+import { LANGUAGE_ENUM, URGENCY_ENUM, isRtl, loc, type AnalysisResult } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ReferralBlock } from "@/components/ReferralBlock";
 
-const urgencyColor: Record<UrgencyLevel, string> = {
-  Low: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  Medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
-  High: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-  Critical: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-};
+// Index = the backend's UrgencyLevel int (Low=0 .. Critical=3). The API serializes enums as ints
+// on the wire, but AnalysisResult's type says string — tolerate both (see the same normalization,
+// and why, in ReferralBlock.tsx).
+const URGENCY_COLOR_BY_INDEX = [
+  "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+];
+const URGENCY_KEYS = ["urg.low", "urg.medium", "urg.high", "urg.critical"];
 
 export function AnalysisCard({
   analysis,
@@ -28,6 +32,8 @@ export function AnalysisCard({
   const { t, language } = useLanguage();
   // Analysis content is shown in the chosen language; direction follows that language.
   const dir = isRtl(language) ? "rtl" : "ltr";
+  const urgencyIndex =
+    typeof analysis.urgencyLevel === "number" ? analysis.urgencyLevel : URGENCY_ENUM[analysis.urgencyLevel] ?? 0;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);   // audio fetched & loaded
@@ -158,8 +164,8 @@ export function AnalysisCard({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{t("doc.summary")}</CardTitle>
-          <span className={`rounded-full px-3 py-1 text-sm font-medium ${urgencyColor[analysis.urgencyLevel]}`}>
-            {t("doc.urgency")}: {analysis.urgencyLevel}
+          <span className={`rounded-full px-3 py-1 text-sm font-medium ${URGENCY_COLOR_BY_INDEX[urgencyIndex] ?? URGENCY_COLOR_BY_INDEX[0]}`}>
+            {t("doc.urgency")}: {t(URGENCY_KEYS[urgencyIndex] ?? "urg.low")}
           </span>
         </CardHeader>
         <CardContent>

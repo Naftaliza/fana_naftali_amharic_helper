@@ -3,8 +3,10 @@
 @tailwind utilities;
 
 :root {
-  /* next/font sets --font-noto; fall back to system fonts with Hebrew/Ethiopic coverage. */
-  --font-sans: var(--font-noto), "Segoe UI", "Noto Sans Hebrew", "Noto Sans Ethiopic", system-ui, sans-serif;
+  /* next/font sets --font-noto (Hebrew) and --font-ethiopic (Amharic); browsers pick
+     per-character based on glyph coverage, so both must be listed for either script to render
+     with its intended webfont instead of falling back to whatever the device has installed. */
+  --font-sans: var(--font-noto), var(--font-ethiopic), "Segoe UI", "Noto Sans Hebrew", "Noto Sans Ethiopic", system-ui, sans-serif;
 }
 
 html {

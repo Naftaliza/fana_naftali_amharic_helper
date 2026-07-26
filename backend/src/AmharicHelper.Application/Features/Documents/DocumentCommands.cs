@@ -1,6 +1,5 @@
 using AmharicHelper.Application.Abstractions;
 using AmharicHelper.Application.Common;
-using AmharicHelper.Application.Documents;
 using AmharicHelper.Application.DTOs;
 using AmharicHelper.Domain.Entities;
 using AmharicHelper.Domain.Enums;
@@ -8,59 +7,51 @@ using MediatR;
 
 namespace AmharicHelper.Application.Features.Documents;
 
-// ---- Upload + OCR (one or more pages) ----
+// ---- Upload (one or more pages); OCR runs afterward, off the request thread ----
 public record UploadDocumentCommand(Guid UserId, IReadOnlyList<UploadPage> Pages)
     : IRequest<Result<UploadDocumentResultDto>>;
 
 public class UploadDocumentHandler(
     IFileStorage storage,
-    IOcrProvider ocr,
-    IDocumentRepository documents) : IRequestHandler<UploadDocumentCommand, Result<UploadDocumentResultDto>>
+    IDocumentRepository documents,
+    IDocumentProcessingQueue queue,
+    IEventTracker events) : IRequestHandler<UploadDocumentCommand, Result<UploadDocumentResultDto>>
 {
     public async Task<Result<UploadDocumentResultDto>> Handle(UploadDocumentCommand cmd, CancellationToken ct)
     {
         if (cmd.Pages.Count == 0)
             return Result<UploadDocumentResultDto>.Fail("No pages provided.");
 
-        // OCR every page first, then save only the kept ones — so a mid-batch OCR failure leaves no
-        // orphaned files on disk. A configuration error (missing key) throws out to the controller.
-        MultiPageOcr.Result ocrResult;
-        try
+        // Save every page immediately — all of them, not just ones that will turn out readable,
+        // since we don't know that yet. OCR itself now runs in DocumentProcessor, off this request,
+        // so a multi-page upload no longer holds the HTTP connection open for minutes.
+        var pagePaths = new string[cmd.Pages.Count];
+        var pageContentTypes = new string[cmd.Pages.Count];
+        for (var i = 0; i < cmd.Pages.Count; i++)
         {
-            ocrResult = await MultiPageOcr.RunAsync(
-                cmd.Pages.Select(p => (p.Content, p.ContentType)).ToList(), ocr, ct);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Result<UploadDocumentResultDto>.Fail(ex.Message);
+            pagePaths[i] = await storage.SaveAsync(cmd.Pages[i].Content, cmd.Pages[i].FileName, ct);
+            pageContentTypes[i] = cmd.Pages[i].ContentType;
         }
 
-        if (ocrResult.KeptPageIndices.Count == 0)
-            return Result<UploadDocumentResultDto>.Fail("No readable text was found in the document.");
-
-        // Save only the pages whose text we kept, preserving order.
-        var pagePaths = new List<string>(ocrResult.KeptPageIndices.Count);
-        foreach (var i in ocrResult.KeptPageIndices)
-        {
-            var page = cmd.Pages[i];
-            pagePaths.Add(await storage.SaveAsync(page.Content, page.FileName, ct));
-        }
-
-        var firstKept = cmd.Pages[ocrResult.KeptPageIndices[0]];
+        var first = cmd.Pages[0];
         var doc = new Document
         {
             UserId = cmd.UserId,
-            FileName = firstKept.FileName,
+            FileName = first.FileName,
             FilePath = pagePaths[0],
-            ContentType = firstKept.ContentType,
-            OcrText = ocrResult.CombinedText,
-            PagePaths = pagePaths.ToArray()
+            ContentType = first.ContentType,
+            PagePaths = pagePaths,
+            PageContentTypes = pageContentTypes,
+            Status = DocumentProcessingStatus.Pending,
+            TotalPages = cmd.Pages.Count
         };
         await documents.AddAsync(doc, ct);
+        queue.Enqueue(doc.Id);
+        await events.TrackAsync(EventNames.DocumentUploaded, cmd.UserId, ct);
 
         return Result<UploadDocumentResultDto>.Ok(new UploadDocumentResultDto(
             doc.Id, doc.FileName, doc.ContentType, doc.UploadedAt,
-            PageCount: pagePaths.Count, SkippedPages: ocrResult.SkippedCount));
+            Status: doc.Status, TotalPages: doc.TotalPages));
     }
 }
 
@@ -103,15 +94,18 @@ public class AnalyzeDocumentHandler(
     IDocumentRepository documents,
     IDocumentAnalysisRepository analyses,
     ITtsAudioCacheRepository ttsCache,
-    IAiProvider ai) : IRequestHandler<AnalyzeDocumentCommand, Result<DocumentAnalysisResult>>
+    IAiProvider ai,
+    IEventTracker events) : IRequestHandler<AnalyzeDocumentCommand, Result<DocumentAnalysisResult>>
 {
     public async Task<Result<DocumentAnalysisResult>> Handle(AnalyzeDocumentCommand cmd, CancellationToken ct)
     {
         var doc = await documents.GetByIdAsync(cmd.DocumentId, ct);
         if (doc is null || doc.UserId != cmd.UserId)
             return Result<DocumentAnalysisResult>.Fail("Document not found.");
-        if (string.IsNullOrWhiteSpace(doc.OcrText))
-            return Result<DocumentAnalysisResult>.Fail("Document has no extracted text to analyze.");
+        if (doc.Status is DocumentProcessingStatus.Pending or DocumentProcessingStatus.Processing)
+            return Result<DocumentAnalysisResult>.Fail("Document is still being processed. Try again shortly.");
+        if (doc.Status == DocumentProcessingStatus.Failed || string.IsNullOrWhiteSpace(doc.OcrText))
+            return Result<DocumentAnalysisResult>.Fail(doc.ProcessingError ?? "Document has no extracted text to analyze.");
 
         DocumentAnalysisResult result;
         try
@@ -142,6 +136,7 @@ public class AnalyzeDocumentHandler(
                 .Select(d => new Deadline(d.Date, d.Description)).ToList(),
             Explanation = result.Explanation
         }, ct);
+        await events.TrackAsync(EventNames.DocumentAnalyzed, cmd.UserId, ct);
 
         return Result<DocumentAnalysisResult>.Ok(result);
     }

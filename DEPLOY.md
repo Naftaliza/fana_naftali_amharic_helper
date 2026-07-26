@@ -30,6 +30,25 @@ Project contains two services in the `production` environment.
 > 4. **Deploy** the API. It waits for the DB, runs migrations, and is ready — data now
 >    survives every redeploy.
 
+### Uploaded files (needs a Railway Volume — not yet provisioned)
+
+`LocalFileStorage` writes uploaded page images to disk at `Storage:RootPath` (default: an
+`uploads` folder next to the API binary). Railway's container filesystem is **ephemeral** — unlike
+the `Postgres` service above, nothing here survives a redeploy by default, so every deploy silently
+deletes every previously uploaded page image (the `Documents` rows survive in Postgres and still
+point at the now-missing files; `OcrText`/analysis/chat/TTS are unaffected since those are stored
+in Postgres, only the original images are lost).
+
+> One-time fix (Railway dashboard, on the API service):
+> 1. **New → Volume**, mount path `/data/uploads`.
+> 2. Set the variable `Storage__RootPath` = `/data/uploads`.
+> 3. **Deploy.** Uploaded files now persist across redeploys.
+
+This is a stopgap, not a long-term fix — a Railway Volume is still single-instance (no horizontal
+scaling: a second replica can't read the first replica's disk). Swapping `LocalFileStorage` for
+S3/R2/Azure Blob behind the existing `IFileStorage` interface removes that ceiling entirely, but
+needs a storage account + credentials the user provides — out of scope here.
+
 ### `fana_naftali_amharic_helper` service (API)
 - Source: GitHub repo, **Root Directory = `backend`**, build = Dockerfile (`backend/Dockerfile`).
 - Outbound IPv6 / TCP-proxy tweaks from the SQL Server era are **no longer needed** — Npgsql
@@ -46,7 +65,9 @@ Project contains two services in the `production` environment.
   | `Ai__Provider` | `Claude` |
   | `Ai__AnthropicApiKey` | (Anthropic key) |
   | `Ai__AnthropicModel` | `claude-sonnet-5` |
+  | `Ai__AnthropicOcrModel` | `claude-haiku-4-5-20251001` (cheaper tier for OCR — see AiOptions.cs) |
   | `Ocr__Provider` | `Claude` |
+  | `Storage__RootPath` | `/data/uploads` (requires the Railway Volume above) |
   | `Tts__Provider` | `Azure` |
   | `Tts__AzureSpeechKey` | (Azure Speech key) |
   | `Tts__AzureRegion` | `westus2` |

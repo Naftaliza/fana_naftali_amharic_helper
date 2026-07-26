@@ -54,8 +54,18 @@ export function CameraCapture({
         setError(t("camera.denied"));
         return;
       }
+      // Request a high-resolution, continuously-focused stream — browsers otherwise commonly
+      // default to 640x480, which is a hard ceiling on OCR quality for dense document text.
+      // These are hints (`ideal`), not hard requirements, so devices that can't meet them still connect.
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode },
+        video: {
+          facingMode: mode,
+          width: { ideal: 1920 },
+          height: { ideal: 1920 },
+          // @ts-expect-error -- focusMode is part of the MediaTrackConstraints draft spec,
+          // supported on Chromium/Android but not yet in TS's lib.dom types.
+          focusMode: "continuous",
+        },
         audio: false,
       });
       streamRef.current = stream;
@@ -198,6 +208,22 @@ export function CameraCapture({
         ) : (
           <>
             <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+            {!starting && (
+              // Framing guide: corner brackets hinting at the page bounds, plus a hint that
+              // fades after a few seconds. Capture still uses the full sensor frame regardless
+              // of what's inside the guide — this is guidance, not a crop.
+              <div className="pointer-events-none absolute inset-6 flex flex-col">
+                <div className="relative flex-1">
+                  <span className="absolute left-0 top-0 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-white/80" />
+                  <span className="absolute right-0 top-0 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-white/80" />
+                  <span className="absolute bottom-0 left-0 h-8 w-8 rounded-bl-lg border-b-4 border-l-4 border-white/80" />
+                  <span className="absolute bottom-0 right-0 h-8 w-8 rounded-br-lg border-b-4 border-r-4 border-white/80" />
+                </div>
+                <p className="mt-3 self-center rounded-full bg-black/40 px-3 py-1 text-center text-sm text-white/90">
+                  {t("camera.frameHint")}
+                </p>
+              </div>
+            )}
             {starting && (
               <div className="absolute inset-0 grid place-items-center text-white/80">{t("camera.starting")}</div>
             )}

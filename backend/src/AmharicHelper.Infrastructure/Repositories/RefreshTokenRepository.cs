@@ -30,4 +30,10 @@ public class RefreshTokenRepository(ISqlConnectionFactory factory) : IRefreshTok
         await conn.ExecuteAsync(
             "UPDATE RefreshTokens SET RevokedAt = now() WHERE Id = @id", new { id });
     }
+
+    public async Task DeleteAllForUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        using var conn = factory.Create();
+        await conn.ExecuteAsync("DELETE FROM RefreshTokens WHERE UserId = @userId", new { userId });
+    }
 }

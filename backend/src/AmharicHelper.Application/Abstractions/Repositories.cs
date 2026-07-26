@@ -10,6 +10,10 @@ public interface IUserRepository
     Task<User?> GetByEmailAsync(string email, CancellationToken ct = default);
     Task AddAsync(User user, CancellationToken ct = default);
     Task UpdateAsync(User user, CancellationToken ct = default);
+
+    /// <summary>Permanently deletes the account row (GDPR Art. 17 "right to erasure"). Callers
+    /// must delete the user's documents and refresh tokens first — Users has no cascading FKs.</summary>
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
 public interface IRefreshTokenRepository
@@ -17,6 +21,10 @@ public interface IRefreshTokenRepository
     Task<RefreshToken?> GetByTokenAsync(string token, CancellationToken ct = default);
     Task AddAsync(RefreshToken token, CancellationToken ct = default);
     Task RevokeAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Deletes every refresh token belonging to a user — required before the user row
+    /// itself can be deleted (RefreshTokens.UserId has no ON DELETE CASCADE).</summary>
+    Task DeleteAllForUserAsync(Guid userId, CancellationToken ct = default);
 }
 
 public interface IDocumentRepository
@@ -24,8 +32,19 @@ public interface IDocumentRepository
     Task<Document?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<Document>> ListByUserAsync(Guid userId, CancellationToken ct = default);
     Task AddAsync(Document document, CancellationToken ct = default);
+
+    /// <summary>Persists OcrText and the processing-state fields (Status, ProcessedPages,
+    /// TotalPages, SkippedPages, ProcessingError) — called repeatedly by DocumentProcessor as it
+    /// works through a document's pages. Immutable fields (FileName, PagePaths, ...) are not
+    /// re-written here.</summary>
     Task UpdateAsync(Document document, CancellationToken ct = default);
+
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Documents left Pending/Processing — either freshly queued, or orphaned by a crash
+    /// or redeploy mid-job. Used by DocumentProcessingWorker on startup to re-queue unfinished work,
+    /// since the in-memory queue itself doesn't survive a restart.</summary>
+    Task<IReadOnlyList<Document>> ListUnfinishedAsync(CancellationToken ct = default);
 }
 
 public interface IDocumentAnalysisRepository
@@ -121,6 +140,20 @@ public interface IOrganizationRepository
     /// <summary>Aggregate, anonymized usage for one tenant — documents processed, unique
     /// members, and the category/urgency/weekly breakdowns behind the admin dashboard.</summary>
     Task<OrganizationStatsDto> GetStatsAsync(Guid organizationId, CancellationToken ct = default);
+}
+
+/// <summary>Minimal funnel-event storage (see <see cref="AnalyticsEvent"/> and IEventTracker).</summary>
+public interface IAnalyticsEventRepository
+{
+    Task AddAsync(AnalyticsEvent evt, CancellationToken ct = default);
+
+    /// <summary>Event counts since a cutoff, one row per distinct event name — the funnel view
+    /// behind the admin analytics endpoint.</summary>
+    Task<IReadOnlyList<EventCountDto>> GetFunnelCountsAsync(DateTime sinceUtc, CancellationToken ct = default);
+
+    /// <summary>Individual occurrences of one event since a cutoff, newest first — the click-through
+    /// list behind a funnel bar. Email is null when the account has since been deleted.</summary>
+    Task<IReadOnlyList<EventDetailDto>> GetEventDetailsAsync(string name, DateTime sinceUtc, CancellationToken ct = default);
 }
 
 /// <summary>Persisted, immutable invoice snapshots for provider billing (see <see cref="Invoice"/>).</summary>

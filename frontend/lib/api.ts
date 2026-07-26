@@ -1,12 +1,15 @@
 // Thin fetch wrapper around the ASP.NET Core API with JWT handling.
 
 import type {
+  AccountExport,
   AnalysisResult,
   AuthUser,
   ChatMessage,
   CreateOrganizationPayload,
   DocumentDetail,
   DocumentSummary,
+  EventDetail,
+  Funnel,
   Invoice,
   LeadsOverview,
   ManagedProvider,
@@ -147,6 +150,9 @@ export const api = {
 
   // --- User ---
   me: () => request<AuthUser>("/api/users/me"),
+  // --- Account (GDPR): export everything the account owns, or delete it permanently ---
+  exportAccount: () => request<AccountExport>("/api/users/me/export"),
+  deleteAccount: () => request<void>("/api/users/me", { method: "DELETE" }),
 
   // --- Documents ---
   listDocuments: () => request<DocumentSummary[]>("/api/documents"),
@@ -278,6 +284,11 @@ export const api = {
   adminSetOrganizationStatus: (id: string, value: boolean) =>
     request<{ ok: boolean }>(`/api/admin/organizations/${id}/active?value=${value}`, { method: "POST" }),
   adminOrganizationStats: (id: string) => request<OrganizationStats>(`/api/admin/organizations/${id}/stats`),
+
+  // --- Admin: product funnel (event counts over a trailing window) ---
+  adminFunnel: (days: number) => request<Funnel>(`/api/admin/analytics/funnel?days=${days}`),
+  adminFunnelEvents: (eventName: string, days: number) =>
+    request<EventDetail[]>(`/api/admin/analytics/funnel/${eventName}?days=${days}`),
 
   // --- Chat ---
   chatHistory: (id: string) => request<ChatMessage[]>(`/api/documents/${id}/chat`),
