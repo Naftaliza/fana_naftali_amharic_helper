@@ -19,7 +19,7 @@ public class ListDocumentsHandler(
         foreach (var d in docs)
         {
             var hasAnalysis = await analyses.GetByDocumentIdAsync(d.Id, ct) is not null;
-            list.Add(new DocumentSummaryDto(d.Id, d.FileName, d.ContentType, d.UploadedAt, hasAnalysis));
+            list.Add(new DocumentSummaryDto(d.Id, d.FileName, d.ContentType, d.UploadedAt, hasAnalysis, d.Status));
         }
         return Result<IReadOnlyList<DocumentSummaryDto>>.Ok(list);
     }
@@ -54,6 +54,8 @@ public class GetDocumentHandler(
         };
 
         return Result<DocumentDetailDto>.Ok(
-            new DocumentDetailDto(doc.Id, doc.FileName, doc.ContentType, doc.OcrText, doc.UploadedAt, result));
+            new DocumentDetailDto(
+                doc.Id, doc.FileName, doc.ContentType, doc.OcrText, doc.UploadedAt, result,
+                doc.Status, doc.ProcessedPages, doc.TotalPages, doc.SkippedPages, doc.ProcessingError));
     }
 }

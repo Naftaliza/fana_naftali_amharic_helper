@@ -51,4 +51,10 @@ public class UserRepository(ISqlConnectionFactory factory) : IUserRepository
             WHERE Id = @Id
             """, user);
     }
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    {
+        using var conn = factory.Create();
+        await conn.ExecuteAsync("DELETE FROM Users WHERE Id = @id", new { id });
+    }
 }

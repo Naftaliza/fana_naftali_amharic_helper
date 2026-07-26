@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, ShieldCheck, Building2 } from "lucide-react";
+import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, ShieldCheck, Building2, BarChart3 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useOrganization } from "@/lib/organization-context";
@@ -197,6 +197,11 @@ export function Navbar() {
                 {user?.isAdmin && (
                   <Link href="/admin/organizations" className={itemClass}>
                     <Building2 className="h-5 w-5 text-brand" />{t("nav.organizations")}
+                  </Link>
+                )}
+                {user?.isAdmin && (
+                  <Link href="/admin/analytics" className={itemClass}>
+                    <BarChart3 className="h-5 w-5 text-brand" />{t("nav.analytics")}
                   </Link>
                 )}
 

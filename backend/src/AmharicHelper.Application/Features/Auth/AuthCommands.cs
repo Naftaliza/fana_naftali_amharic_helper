@@ -29,6 +29,7 @@ public class RegisterHandler(
     IPasswordHasher hasher,
     IEmailSender emailSender,
     IConfiguration config,
+    IEventTracker events,
     ILogger<RegisterHandler> logger) : IRequestHandler<RegisterCommand, Result<RegisterResponse>>
 {
     public async Task<Result<RegisterResponse>> Handle(RegisterCommand cmd, CancellationToken ct)
@@ -61,6 +62,7 @@ public class RegisterHandler(
             EmailVerificationExpiresAt = DateTime.UtcNow.AddHours(1)
         };
         await users.AddAsync(user, ct);
+        await events.TrackAsync(EventNames.UserRegistered, user.Id, ct);
 
         var origin = (config["Frontend:Origin"] ?? "http://localhost:3001").Split(',')[0].Trim();
         var link = $"{origin}/verify-email?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(rawToken)}";
@@ -251,7 +253,8 @@ public class VerifyEmailHandler(
     IUserRepository users,
     IPasswordHasher hasher,
     IJwtService jwt,
-    IRefreshTokenRepository refreshTokens) : IRequestHandler<VerifyEmailCommand, Result<AuthResponse>>
+    IRefreshTokenRepository refreshTokens,
+    IEventTracker events) : IRequestHandler<VerifyEmailCommand, Result<AuthResponse>>
 {
     public async Task<Result<AuthResponse>> Handle(VerifyEmailCommand cmd, CancellationToken ct)
     {
@@ -274,6 +277,7 @@ public class VerifyEmailHandler(
         user.EmailVerificationTokenHash = null;   // consume the token (single use)
         user.EmailVerificationExpiresAt = null;
         await users.UpdateAsync(user, ct);
+        await events.TrackAsync(EventNames.EmailVerified, user.Id, ct);
 
         // Verification is the final stage of registration — log the user straight in.
         return Result<AuthResponse>.Ok(await TokenFactory.IssueAsync(user, jwt, refreshTokens, ct));

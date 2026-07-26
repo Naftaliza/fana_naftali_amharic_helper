@@ -77,21 +77,29 @@ export interface AnalysisResult {
   explanation: LocalizedText;
 }
 
+// Background OCR pipeline state (see backend DocumentProcessor). Sent as an int on the wire
+// (0=Pending, 1=Processing, 2=Ready, 3=Failed) like every other backend enum except
+// AnalysisResult.urgencyLevel — see the note there.
+export const DOCUMENT_STATUS = { Pending: 0, Processing: 1, Ready: 2, Failed: 3 } as const;
+
 export interface DocumentSummary {
   id: string;
   fileName: string;
   contentType: string;
   uploadedAt: string;
   hasAnalysis: boolean;
+  status: number;
 }
 
+// What POST /documents returns immediately — OCR hasn't run yet (status is always Pending).
+// Poll GET /documents/{id} for progress and completion.
 export interface UploadDocumentResult {
   id: string;
   fileName: string;
   contentType: string;
   uploadedAt: string;
-  pageCount: number;
-  skippedPages: number;
+  status: number;
+  totalPages: number;
 }
 
 export interface DocumentDetail {
@@ -101,6 +109,11 @@ export interface DocumentDetail {
   ocrText: string | null;
   uploadedAt: string;
   analysis: AnalysisResult | null;
+  status: number;
+  processedPages: number;
+  totalPages: number;
+  skippedPages: number;
+  processingError: string | null;
 }
 
 export interface ChatMessage {
@@ -116,6 +129,30 @@ export interface AuthUser {
   displayName: string;
   preferredLanguage: number;
   isAdmin?: boolean;
+}
+
+// GDPR Art. 15 data export (GET /api/users/me/export) — everything the account owns.
+export interface ExportedChatMessage {
+  role: number; // 0 = user, 1 = assistant
+  content: string;
+  createdAt: string;
+}
+
+export interface ExportedDocument {
+  id: string;
+  fileName: string;
+  uploadedAt: string;
+  ocrText: string | null;
+  analysis: AnalysisResult | null;
+  chatMessages: ExportedChatMessage[];
+}
+
+export interface AccountExport {
+  userId: string;
+  email: string;
+  displayName: string;
+  generatedAt: string;
+  documents: ExportedDocument[];
 }
 
 // Business self-registration payload (category is a DOCUMENT_CATEGORY int).
@@ -215,6 +252,21 @@ export interface RecentLead {
 export interface LeadsOverview {
   summary: LeadSummary[];
   recent: RecentLead[];
+}
+
+// Admin funnel view — event counts (registered/verified/uploaded/analyzed) over a trailing window.
+export interface EventCount {
+  name: string;
+  count: number;
+}
+export interface Funnel {
+  sinceUtc: string;
+  counts: EventCount[];
+}
+// One occurrence of a funnel event — email is null if the account has since been deleted.
+export interface EventDetail {
+  email: string | null;
+  createdAt: string;
 }
 
 // A B2B/B2G tenant's public branding, resolved by slug (drives a white-labeled front end).

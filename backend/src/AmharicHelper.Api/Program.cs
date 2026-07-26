@@ -1,13 +1,17 @@
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 using System.Threading.RateLimiting;
+using AmharicHelper.Api.HealthChecks;
 using AmharicHelper.Api.Middleware;
 using AmharicHelper.Application;
 using AmharicHelper.Infrastructure;
 using AmharicHelper.Infrastructure.Persistence;
 using AmharicHelper.Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -15,6 +19,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Real health check — the old /health was a static literal that could never fail, so Railway
+// would report the app healthy while Postgres was down and every real request 500'd.
+builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -134,6 +142,21 @@ app.UseAuthorization();
 app.UseOutputCache();
 
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+// Keeps the existing { "status": "ok" } contract on success (see DEPLOY.md) while actually
+// checking dependencies now; returns 503 with unhealthy check names on failure.
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var payload = new
+        {
+            status = report.Status == HealthStatus.Healthy ? "ok" : "unhealthy",
+            checks = report.Entries.Select(e => new { name = e.Key, status = e.Value.Status.ToString() })
+        };
+        await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
+    }
+});
 
 app.Run();

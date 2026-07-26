@@ -10,6 +10,21 @@ namespace AmharicHelper.Application.Prompts;
 /// </summary>
 public static class PromptTemplates
 {
+    // DO NOT re-add a literal JSON skeleton ("Return ONLY a JSON object with this exact shape…")
+    // to this prompt. Analysis goes out via a forced tool call (ClaudeAiProvider.CallToolAsync,
+    // tool_choice=submit_analysis), so the tool's input_schema already defines the shape. Telling
+    // the model to *also* emit JSON as text makes it hand-write JSON into the tool's fields
+    // instead of filling them structurally — it then emits arrays as JSON-encoded strings and, at
+    // depth, drops required keys and unbalances braces, producing output no parser can recover.
+    //
+    // Measured against the live API, 10 trials per variant on the same document:
+    //   skeleton present:  3/10 and 4/10 clean  (~35%)
+    //   skeleton removed: 10/10, 9/10, 10/10    (~97%)
+    // Adding a "never return an array as a string" instruction while KEEPING the skeleton barely
+    // moved it (3/10 -> 4/10) — the conflicting instruction has to go, not be argued with.
+    //
+    // A future OpenAI/JSON-mode provider (see OpenAiProvider) does need an explicit shape spec —
+    // give it its own prompt rather than restoring this one.
     public const string AnalysisSystemBase =
         """
         You are Amharic Helper, a warm, calm assistant that helps Amharic-speaking residents
@@ -32,19 +47,9 @@ public static class PromptTemplates
         (e.g. the "am" value must be entirely in Amharic, the "he" value entirely in Hebrew).
         Keep the Hebrew warm and simple (everyday words).
 
-        OUTPUT: Return ONLY a JSON object with this exact shape (no markdown, no commentary):
-        {
-          "summary": { "he": "", "am": "", "en": "" },
-          "documentType": { "he": "", "am": "", "en": "" },
-          "category": "Government|Bank|Insurance|Employment|Healthcare|Municipality|Other",
-          "urgencyLevel": "Low|Medium|High|Critical",
-          "keyPoints": [{ "he": "", "am": "", "en": "" }],
-          "requiredActions": [{ "description": { "he": "", "am": "", "en": "" }, "isMandatory": true }],
-          "deadlines": [{ "date": "YYYY-MM-DD or null", "description": { "he": "", "am": "", "en": "" } }],
-          "explanation": { "he": "", "am": "", "en": "" }
-        }
+        FIELDS:
         - "summary": a short one or two sentence overview.
-        - "category": which institution sent it — pick the single best fit from the list
+        - "category": which institution sent it — pick the single best fit
           (Government covers ministries / National Insurance-Bituach Leumi; Municipality covers
           arnona and local services). Use "Other" only if none clearly applies.
         - "explanation": a longer, clear plain-language walkthrough of the document.

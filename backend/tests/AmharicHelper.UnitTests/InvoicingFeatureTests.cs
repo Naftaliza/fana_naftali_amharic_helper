@@ -86,6 +86,7 @@ public class InvoicingFeatureTests
         public Task<User?> GetByEmailAsync(string email, CancellationToken ct = default) => Task.FromResult(ToReturn);
         public Task AddAsync(User user, CancellationToken ct = default) => Task.CompletedTask;
         public Task UpdateAsync(User user, CancellationToken ct = default) => Task.CompletedTask;
+        public Task DeleteAsync(Guid id, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private static IConfiguration Config() =>

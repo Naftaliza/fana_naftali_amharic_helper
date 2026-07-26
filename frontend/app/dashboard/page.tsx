@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import type { DocumentSummary } from "@/lib/types";
+import { DOCUMENT_STATUS, type DocumentSummary } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -65,7 +65,17 @@ export default function DashboardPage() {
                     <p className="truncate font-medium">{d.fileName}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(d.uploadedAt).toLocaleString()}</p>
                   </div>
-                  {d.hasAnalysis && <span className="rounded-full bg-green-100 px-3 py-1 text-xs text-green-800 dark:bg-green-900/40 dark:text-green-300">✓</span>}
+                  {d.status === DOCUMENT_STATUS.Pending || d.status === DOCUMENT_STATUS.Processing ? (
+                    <span className="shrink-0 rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                      {t("doc.processingBadge")}
+                    </span>
+                  ) : d.status === DOCUMENT_STATUS.Failed ? (
+                    <span className="shrink-0 rounded-full bg-red-100 px-3 py-1 text-xs text-red-800 dark:bg-red-900/40 dark:text-red-300">
+                      {t("doc.failedBadge")}
+                    </span>
+                  ) : (
+                    d.hasAnalysis && <span className="shrink-0 rounded-full bg-green-100 px-3 py-1 text-xs text-green-800 dark:bg-green-900/40 dark:text-green-300">✓</span>
+                  )}
                 </Link>
                 <button
                   onClick={(e) => handleDelete(d.id, e)}

@@ -46,14 +46,17 @@ can help with that document.
 | Referrals | Vetted providers matched per document category · per-lead tracking with lifecycle status (New/Contacted/Responded/Converted/Invalid) for billing integrity · anonymous post-contact "was this helpful?" feedback → per-provider satisfaction rate · anonymous partner self-registration · admin approve/manage console |
 | Invoicing | Admin-initiated, persisted PDF invoices (QuestPDF), branded with the Fana logo/colors, per provider + calendar month, snapshotting billable (Converted) leads so a later status change never rewrites history · emailed via SMTP (MailKit) · one invoice per provider/month (unique index) · generation always persists even if the email send fails (`Status=Failed` + `SendError`, PDF still downloadable) · a billing statement, not a payment-collection/tax document — no tax ID or bank details, since payment is handled directly, out-of-band |
 | Organizations | B2B/B2G tenants (`Organizations`) — a user optionally tags itself to a tenant by slug at registration; admin-only tenant create/edit/activate-deactivate and an aggregate, anonymized usage dashboard (documents processed, unique members, category/urgency/weekly breakdowns) per tenant. Slug is locked after creation |
-| AI        | `IAiProvider` → `ClaudeAiProvider` (default) / `OpenAiProvider`      |
-| OCR       | `IOcrProvider` → `ClaudeOcrProvider` (default) / Google Vision / Azure |
+| AI        | `IAiProvider` → `ClaudeAiProvider` (default) / `OpenAiProvider` · prompt-cached system prompt + tool schema (`cache_control`, ~90% input-cost cut on repeats within the cache TTL) · per-call token usage and `stop_reason`-truncation logged (`AnthropicResponseHelpers`) · transport-failure + `Retry-After`-aware retry with an explicit 60s `HttpClient.Timeout` (`AnthropicHttp`) |
+| OCR       | `IOcrProvider` → `ClaudeOcrProvider` (default, on a separate cheaper `Ai:AnthropicOcrModel` tier) / Google Vision / Azure · runs off the request thread — see Document processing below |
+| Document processing | Upload persists every page and returns `202 Accepted` immediately; OCR then runs page-by-page in `DocumentProcessor`, driven by an in-memory queue + `DocumentProcessingWorker` background service (with startup reconciliation for anything left mid-job by a crash/redeploy). The client polls `GET /documents/{id}` (`Status`/`ProcessedPages`/`TotalPages`) instead of holding one long-lived request open |
+| Analytics | Minimal funnel instrumentation (`AnalyticsEvents`) — registered/verified/uploaded/analyzed counts, viewable via `GET /api/admin/analytics/funnel` (admin only) and on the `/admin/analytics` dashboard page (period selector: 7/30/90 days); each stage is clickable and drills into the individual events (`GET /api/admin/analytics/funnel/{eventName}`) — who (email, or "deleted account" if the user's since been removed) and when. Tracking failures never fail the request they're attached to |
 | TTS       | `ITtsProvider` → `AzureTtsProvider` (default) / ElevenLabs · audio cached per (document, language) |
 | Frontend  | Next.js 15 · TypeScript · Tailwind CSS · shadcn-style UI             |
 | Languages | Hebrew (default, RTL) · Amharic · English                            |
-| Hosting   | Netlify (frontend) · Railway (API + PostgreSQL) — see `DEPLOY.md`    |
+| Hosting   | Netlify (frontend) · Railway (API + PostgreSQL, + a Volume for uploaded files — see `DEPLOY.md`) |
 | Hardening | Per-endpoint rate limiting (auth/trial/referrals) · CORS policy · PWA service worker · accessibility widget |
 | Performance | Brotli/gzip response compression · output caching on the tenant-branding endpoint · indexed hot query paths (`Users.OrganizationId`, `DocumentAnalyses.CreatedAt`) · immutable-cached static assets and tree-shaken icon imports on the frontend |
+| Health    | `/health` runs a real Postgres connectivity check (`DatabaseHealthCheck`), not a static literal — returns 503 when the database is unreachable |
 
 > **QuestPDF licensing note:** invoice PDFs are generated with QuestPDF's free
 > "Community" license, which applies only below a revenue threshold QuestPDF
@@ -80,7 +83,8 @@ Fana 2.0/
    │                           #   forgot-password, reset-password,
    │                           #   dashboard, upload, documents/[id], documents/[id]/chat, profile,
    │                           #   partners (self-registration), admin/providers,
-   │                           #   admin/organizations (B2G tenant console)
+   │                           #   admin/organizations (B2G tenant console),
+   │                           #   admin/analytics (funnel dashboard)
    ├─ components/               # Navbar, UploadExperience, CameraCapture, AnalysisCard,
    │                           #   ReferralBlock, LeadFeedbackPrompt, ShareButton, Onboarding,
    │                           #   AccessibilityWidget, ServiceWorker, ui/
@@ -95,24 +99,27 @@ The backend Application layer is organized by feature (`Auth`, `Documents`,
 commands/queries.
 
 ### Database schema
-`Users` (with an optional `OrganizationId`), `RefreshTokens`, `Documents`,
+`Users` (with an optional `OrganizationId`), `RefreshTokens`, `Documents` (with
+`Status`/`ProcessedPages`/`TotalPages`/`SkippedPages`/`ProcessingError` for the
+background OCR pipeline, plus `PageContentTypes` alongside `PagePaths`),
 `DocumentAnalyses`, `ChatMessages`, `TtsAudioCache`, `Providers`, `Leads` (with
 `Status` and `Helpful` columns for lead lifecycle + post-contact feedback),
 `Organizations` (B2B/B2G tenant branding), `Invoices` (persisted, immutable
 per-provider/month billing snapshots, unique on `(ProviderId, PeriodYear,
-PeriodMonth)`) (see
-`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`016`).
+PeriodMonth)`), `AnalyticsEvents` (minimal funnel instrumentation — event name +
+optional user + timestamp) (see
+`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`018`).
 Migrations are idempotent PostgreSQL and run on API startup. Analysis text
 columns store JSON localized to `{ he, am, en }`.
 
 ### API endpoints
 - `POST /api/auth/register | login | refresh | forgot-password | reset-password | verify-email | resend-verification`
-- `GET  /api/users/me`
-- `POST /api/documents` (upload + OCR), `GET /api/documents`, `GET /api/documents/{id}`
+- `GET  /api/users/me`, `GET /api/users/me/export` (GDPR Art. 15 data export — profile + every document/analysis/chat as JSON), `DELETE /api/users/me` (GDPR Art. 17 account erasure — irreversible)
+- `POST /api/documents` (upload — returns `202 Accepted` immediately; OCR runs in the background, see Document processing above), `GET /api/documents` (list, with each document's processing `Status`), `GET /api/documents/{id}` (poll for `Status`/`ProcessedPages`/`TotalPages`/`SkippedPages`/`ProcessingError` and, once ready, the analysis)
 - `POST /api/documents/{id}/analyze?category=`
 - `GET  /api/documents/{id}/speech?language=` (spoken explanation, MP3)
 - `GET|POST /api/documents/{id}/chat`
-- `POST /api/trial/analyze`, `POST /api/trial/speech` (anonymous trial, nothing saved)
+- `POST /api/trial/analyze`, `POST /api/trial/speech` (anonymous trial, nothing saved — still synchronous, capped at 5 pages)
 - `GET  /api/referrals?category=` (matched providers), `POST /api/referrals/{providerId}/lead` (log a contact) — anonymous, rate-limited
 - `POST /api/referrals/feedback/{refCode}` (post-contact "did this help?" signal) — anonymous, rate-limited
 - `POST /api/partners/apply` (business self-registration, anonymous, rate-limited)
@@ -121,7 +128,8 @@ columns store JSON localized to `{ he, am, en }`.
 - `GET /api/admin/providers/{id}/invoices/status?year=&month=` (check if an invoice exists for a provider+month), `POST /api/admin/providers/{id}/invoices/generate` (generate + email a PDF invoice for the billable leads in that month), `GET /api/admin/providers/{id}/invoices/{invoiceId}/pdf` (re-download the PDF) — admin only
 - `GET  /api/organizations/{slug}` (tenant branding lookup — anonymous, drives a white-labeled front end, output-cached 2 min)
 - `POST /api/admin/organizations` (create a tenant), `GET /api/admin/organizations` (list), `PUT /api/admin/organizations/{id}` (edit branding — slug immutable), `POST /api/admin/organizations/{id}/active?value=` (activate/deactivate), `GET /api/admin/organizations/{id}/stats` (usage dashboard) — admin only
-- `GET /health`
+- `GET /api/admin/analytics/funnel?days=` (event counts over a trailing window — admin only), `GET /api/admin/analytics/funnel/{eventName}?days=` (drill down: the individual occurrences behind one count — admin only)
+- `GET /health` (real Postgres connectivity check)
 
 ## Local development
 
@@ -177,7 +185,9 @@ variables (double-underscore syntax, e.g. `Ai__Provider`):
 | `Jwt__Secret`             | JWT signing key (≥32 chars)                        | placeholder   |
 | `Ai__Provider`            | `Claude` or `OpenAI`                               | `Claude`      |
 | `Ai__AnthropicApiKey` / `ANTHROPIC_API_KEY` | Claude API key (used for AI + OCR) | empty         |
+| `Ai__AnthropicOcrModel`   | Model used for OCR — a cheaper tier than `Ai__AnthropicModel` since OCR is high-volume transcription, not analysis-grade reasoning | `claude-haiku-4-5-20251001` |
 | `Ocr__Provider`           | `Claude`, `Mock`, `Google`, or `Azure`             | `Claude`      |
+| `Storage__RootPath`       | Where uploaded page files are written — point this at a mounted volume in production (see `DEPLOY.md`) or every redeploy loses uploaded files | `<app>/uploads` |
 | `Tts__Provider`           | `Azure` or `ElevenLabs`                            | `Azure`       |
 | `Tts__AzureSpeechKey` / `Tts__AzureRegion` | Azure Speech credentials          | empty         |
 | `Admin__Emails`           | CSV of emails granted admin access (provider/lead consoles) | empty |

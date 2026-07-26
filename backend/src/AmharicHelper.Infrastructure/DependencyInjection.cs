@@ -1,9 +1,12 @@
 using AmharicHelper.Application.Abstractions;
+using AmharicHelper.Application.Common;
+using AmharicHelper.Application.Documents;
 using AmharicHelper.Infrastructure.Ai;
 using AmharicHelper.Infrastructure.Email;
 using AmharicHelper.Infrastructure.Invoicing;
 using AmharicHelper.Infrastructure.Ocr;
 using AmharicHelper.Infrastructure.Persistence;
+using AmharicHelper.Infrastructure.Processing;
 using AmharicHelper.Infrastructure.Repositories;
 using AmharicHelper.Infrastructure.Security;
 using AmharicHelper.Infrastructure.Storage;
@@ -36,6 +39,17 @@ public static class DependencyInjection
         services.AddScoped<ILeadRepository, LeadRepository>();
         services.AddScoped<IOrganizationRepository, OrganizationRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<IAnalyticsEventRepository, AnalyticsEventRepository>();
+        services.AddScoped<IEventTracker, EventTracker>();
+
+        // Background OCR pipeline: upload persists pages + enqueues, DocumentProcessingWorker
+        // dequeues and runs DocumentProcessor off the request thread (see plan). The queue is
+        // registered as both its concrete type (the worker needs the ChannelReader) and the
+        // narrower interface (everything else only needs to enqueue).
+        services.AddSingleton<DocumentProcessingQueue>();
+        services.AddSingleton<IDocumentProcessingQueue>(sp => sp.GetRequiredService<DocumentProcessingQueue>());
+        services.AddScoped<DocumentProcessor>();
+        services.AddHostedService<DocumentProcessingWorker>();
 
         // Provider invoicing: PDF generation (QuestPDF — Community license, revenue-capped; see
         // README) and outbound email, configured via Email:Smtp (reused for both senders below —
@@ -77,7 +91,10 @@ public static class DependencyInjection
             case "mock": services.AddScoped<IOcrProvider, MockOcrProvider>(); break;
             case "google": services.AddScoped<IOcrProvider, GoogleVisionOcrProvider>(); break;
             case "azure": services.AddScoped<IOcrProvider, AzureOcrProvider>(); break;
-            default: services.AddHttpClient<IOcrProvider, ClaudeOcrProvider>(); break;
+            // An explicit timeout replaces .NET's 100s default — combined with
+            // AnthropicHttp's 4 retry attempts, an unset timeout could otherwise pin a
+            // request for ~400s. 60s is well above the typical 5-20s a single OCR call takes.
+            default: services.AddHttpClient<IOcrProvider, ClaudeOcrProvider>(c => c.Timeout = TimeSpan.FromSeconds(60)); break;
         }
 
         // AI provider — selectable via Ai:Provider (Claude | OpenAI)
@@ -85,7 +102,11 @@ public static class DependencyInjection
         if (aiProvider.Equals("OpenAI", StringComparison.OrdinalIgnoreCase))
             services.AddScoped<IAiProvider, OpenAiProvider>();
         else
-            services.AddHttpClient<IAiProvider, ClaudeAiProvider>();
+            // Longer than the OCR client's: a full trilingual (he/am/en) structured analysis,
+            // forced through tool_choice with max_tokens=8192, has been observed taking
+            // consistently longer than 60s to generate — that's not a flaky call worth
+            // retrying quickly, it's a call that needs more time to begin with.
+            services.AddHttpClient<IAiProvider, ClaudeAiProvider>(c => c.Timeout = TimeSpan.FromSeconds(120));
 
         // Text-to-speech — selectable via Tts:Provider (Azure | ElevenLabs).
         // Azure is the default because it has native Amharic neural voices.

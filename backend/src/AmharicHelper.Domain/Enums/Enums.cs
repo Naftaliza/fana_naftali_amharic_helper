@@ -46,3 +46,15 @@ public enum LeadStatus
     Converted = 3,
     Invalid = 4
 }
+
+/// <summary>
+/// Background OCR pipeline state for an uploaded document (see DocumentProcessor). Existing rows
+/// predating this column default to Ready, since their OCR already ran synchronously at upload.
+/// </summary>
+public enum DocumentProcessingStatus
+{
+    Pending = 0,
+    Processing = 1,
+    Ready = 2,
+    Failed = 3
+}
