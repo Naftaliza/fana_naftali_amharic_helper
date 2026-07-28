@@ -20,14 +20,16 @@ const STEPS = [
  * pattern as lib/trial.ts.
  */
 export function Onboarding() {
-  const { t, rtl } = useLanguage();
+  const { t, rtl, languageChosen } = useLanguage();
   const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    if (!loading && !user && !hasSeenOnboarding()) setOpen(true);
-  }, [loading, user]);
+    // Wait for the language gate to be resolved so onboarding never renders in the wrong
+    // language behind it.
+    if (!loading && !user && languageChosen && !hasSeenOnboarding()) setOpen(true);
+  }, [loading, user, languageChosen]);
 
   const close = () => {
     markOnboardingSeen();

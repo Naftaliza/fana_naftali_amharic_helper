@@ -88,6 +88,61 @@ describe("api request()", () => {
   });
 });
 
+// documentPage() bypasses request() (it needs a Blob, not JSON) and hand-rolls the same
+// auth-header + 401-refresh-and-replay behavior speech() already uses — covered here since
+// request()'s tests above don't exercise that code path.
+function blobResponse(status: number): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: "error",
+    json: async () => ({ error: "Failed to load page" }),
+    blob: async () => new Blob(["fake-image-bytes"], { type: "image/jpeg" }),
+  } as unknown as Response;
+}
+
+describe("api.documentPage()", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    global.fetch = jest.fn();
+  });
+
+  it("returns a blob on success", async () => {
+    tokenStore.set("access-token", "refresh-token", true);
+    (global.fetch as jest.Mock).mockResolvedValueOnce(blobResponse(200));
+
+    const blob = await api.documentPage("doc-1", 0);
+
+    expect(blob).toBeInstanceOf(Blob);
+  });
+
+  it("refreshes once and replays on a 401", async () => {
+    tokenStore.set("expired-access-token", "valid-refresh-token", true);
+    const fetchMock = global.fetch as jest.Mock;
+    fetchMock
+      .mockResolvedValueOnce(blobResponse(401))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        accessToken: "new-access-token",
+        refreshToken: "new-refresh-token",
+        user: { id: "1", email: "user@test.local", displayName: "User", preferredLanguage: 0 },
+      }))
+      .mockResolvedValueOnce(blobResponse(200));
+
+    const blob = await api.documentPage("doc-1", 0);
+
+    expect(blob).toBeInstanceOf(Blob);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("throws the server's error message on failure", async () => {
+    tokenStore.set("access-token", "refresh-token", true);
+    (global.fetch as jest.Mock).mockResolvedValueOnce(blobResponse(404));
+
+    await expect(api.documentPage("doc-1", 0)).rejects.toThrow("Failed to load page");
+  });
+});
+
 describe("tokenStore remember-me storage", () => {
   beforeEach(() => {
     window.localStorage.clear();

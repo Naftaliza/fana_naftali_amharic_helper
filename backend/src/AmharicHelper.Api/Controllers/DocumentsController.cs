@@ -63,6 +63,21 @@ public class DocumentsController(IMediator mediator) : ApiControllerBase(mediato
         return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
     }
 
+    /// <summary>
+    /// Fetch one uploaded page's raw file (image or PDF), so the user can see what they
+    /// photographed alongside the AI's analysis. Index is 0-based. Content is immutable once
+    /// uploaded, so it's safe to cache in the browser.
+    /// </summary>
+    [HttpGet("{id:guid}/pages/{index:int}")]
+    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Client)]
+    public async Task<IActionResult> Page(Guid id, int index)
+    {
+        var result = await Mediator.Send(new GetDocumentPageQuery(CurrentUserId, id, index));
+        if (!result.Success || result.Value is null)
+            return NotFound(new { error = result.Error });
+        return File(result.Value.Content, result.Value.ContentType);
+    }
+
     /// <summary>Synthesize spoken audio (MP3) of the document's analysis in the given language.</summary>
     [HttpGet("{id:guid}/speech")]
     public async Task<IActionResult> Speech(Guid id, [FromQuery] Language language = Language.Hebrew)

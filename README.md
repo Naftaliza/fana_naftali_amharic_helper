@@ -32,7 +32,16 @@ can help with that document.
 > dedicated subdomain per tenant, per-tenant data isolation, member invites,
 > and a scoped org-admin role (today's dashboard is gated by the same global
 > admin allowlist as everything else) are still future work (see
-> **Organizations** below).
+> **Organizations** below). A first-run, full-screen language picker
+> (`LanguageGate`) blocks the rest of the app — including onboarding — until a
+> visitor explicitly picks Hebrew/Amharic/English (no silent `navigator.language`
+> guessing), since the app otherwise defaults to Hebrew. Once a document's pages
+> are uploaded, a thumbnail strip (`DocumentPages`) lets the user reopen and
+> pinch/button-zoom any page they photographed — including after a failed OCR —
+> so they can verify the app read the right document. The in-app camera
+> (`CameraCapture`) runs a client-side blur/exposure check (`lib/imageQuality.ts`,
+> a Laplacian-variance pass) on every capture and warns (never blocks) before a
+> bad photo costs the ~60s OCR+analysis round trip.
 
 ![Sample generated invoice PDF, branded with the Fana logo and colors](docs/invoice-sample.png)
 
@@ -52,7 +61,7 @@ can help with that document.
 | Analytics | Minimal funnel instrumentation (`AnalyticsEvents`) — registered/verified/uploaded/analyzed counts, viewable via `GET /api/admin/analytics/funnel` (admin only) and on the `/admin/analytics` dashboard page (period selector: 7/30/90 days); each stage is clickable and drills into the individual events (`GET /api/admin/analytics/funnel/{eventName}`) — who (email, or "deleted account" if the user's since been removed) and when. Tracking failures never fail the request they're attached to |
 | TTS       | `ITtsProvider` → `AzureTtsProvider` (default) / ElevenLabs · audio cached per (document, language) |
 | Frontend  | Next.js 15 · TypeScript · Tailwind CSS · shadcn-style UI             |
-| Languages | Hebrew (default, RTL) · Amharic · English                            |
+| Languages | Hebrew (default until chosen, RTL) · Amharic · English · a blocking first-run `LanguageGate` asks explicitly rather than guessing from `navigator.language` |
 | Hosting   | Netlify (frontend) · Railway (API + PostgreSQL, + a Volume for uploaded files — see `DEPLOY.md`) |
 | Hardening | Per-endpoint rate limiting (auth/trial/referrals) · CORS policy · PWA service worker · accessibility widget |
 | Performance | Brotli/gzip response compression · output caching on the tenant-branding endpoint · indexed hot query paths (`Users.OrganizationId`, `DocumentAnalyses.CreatedAt`) · immutable-cached static assets and tree-shaken icon imports on the frontend |
@@ -86,9 +95,11 @@ Fana 2.0/
    │                           #   admin/organizations (B2G tenant console),
    │                           #   admin/analytics (funnel dashboard)
    ├─ components/               # Navbar, UploadExperience, CameraCapture, AnalysisCard,
+   │                           #   DocumentPages (page thumbnails + zoom lightbox),
    │                           #   ReferralBlock, LeadFeedbackPrompt, ShareButton, Onboarding,
-   │                           #   AccessibilityWidget, ServiceWorker, ui/
-   ├─ lib/                      # api client, auth + language + organization contexts, types
+   │                           #   LanguageGate, AccessibilityWidget, ServiceWorker, ui/
+   ├─ lib/                      # api client, auth + language + organization contexts, types,
+   │                           #   imageQuality (client-side blur/exposure check)
    ├─ i18n/                     # he / am / en dictionaries
    └─ jest.config.js, jest.setup.ts  # Jest + React Testing Library; *.test.ts(x) live in
                                       #   __tests__/ folders next to the code they cover
@@ -117,6 +128,7 @@ columns store JSON localized to `{ he, am, en }`.
 - `GET  /api/users/me`, `GET /api/users/me/export` (GDPR Art. 15 data export — profile + every document/analysis/chat as JSON), `DELETE /api/users/me` (GDPR Art. 17 account erasure — irreversible)
 - `POST /api/documents` (upload — returns `202 Accepted` immediately; OCR runs in the background, see Document processing above), `GET /api/documents` (list, with each document's processing `Status`), `GET /api/documents/{id}` (poll for `Status`/`ProcessedPages`/`TotalPages`/`SkippedPages`/`ProcessingError` and, once ready, the analysis)
 - `POST /api/documents/{id}/analyze?category=`
+- `GET  /api/documents/{id}/pages/{index}` (raw file for one uploaded page — image or PDF — so the user can review what they photographed; client-cached, immutable once uploaded)
 - `GET  /api/documents/{id}/speech?language=` (spoken explanation, MP3)
 - `GET|POST /api/documents/{id}/chat`
 - `POST /api/trial/analyze`, `POST /api/trial/speech` (anonymous trial, nothing saved — still synchronous, capped at 5 pages)

@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { MessageCircle, Sparkles } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { MessageCircle, Sparkles, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/lib/language-context";
 import { DOCUMENT_STATUS, type DocumentDetail } from "@/lib/types";
 import { AnalysisCard } from "@/components/AnalysisCard";
 import { AnalyzingState } from "@/components/AnalyzingState";
+import { DocumentPages } from "@/components/DocumentPages";
 import { ShareButton } from "@/components/ShareButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,11 +21,29 @@ const POLL_INTERVAL_MS = 1500;
 export default function DocumentDetailPage() {
   const { t } = useLanguage();
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
   const [doc, setDoc] = useState<DocumentDetail | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const startedRef = useRef(false); // guard so auto-analyze runs only once
+
+  // Cancel while still waiting (upload/OCR/analysis) — processing is already running
+  // server-side, so "cancel" means delete the document outright, not just stop watching it;
+  // otherwise it would silently finish and show up in the dashboard later anyway. Same
+  // silent-failure convention as the dashboard's own delete button: leave the page in place
+  // so the user can just try again.
+  const cancel = async () => {
+    if (!window.confirm(t("doc.confirmDelete"))) return;
+    setCancelling(true);
+    try {
+      await api.deleteDocument(id);
+      router.push("/dashboard");
+    } catch {
+      setCancelling(false);
+    }
+  };
 
   const analyze = async () => {
     setAnalyzing(true);
@@ -80,15 +99,27 @@ export default function DocumentDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">{doc.fileName}</h1>
-        {doc.analysis && (
+        {doc.analysis ? (
           <div className="flex flex-wrap gap-3">
             <Link href={`/documents/${id}/chat`}>
               <Button variant="outline"><MessageCircle className="h-5 w-5" />{t("doc.chat")}</Button>
             </Link>
             <ShareButton />
           </div>
+        ) : (
+          // Still waiting (upload/OCR/analysis) or it failed with nothing to show yet —
+          // give the user a way out instead of being stuck watching a spinner.
+          <Button variant="outline" onClick={cancel} disabled={cancelling}>
+            <X className="h-5 w-5" />{t("doc.cancel")}
+          </Button>
         )}
       </div>
+
+      {/* Pages are saved at upload time, before OCR runs — show them as soon as they exist so
+          the user can verify what was photographed, even if OCR later fails on all of them. */}
+      {doc.status !== DOCUMENT_STATUS.Pending && doc.totalPages > 0 && (
+        <DocumentPages documentId={id} totalPages={doc.totalPages} />
+      )}
 
       {doc.status === DOCUMENT_STATUS.Ready && doc.skippedPages > 0 && (
         <p role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">

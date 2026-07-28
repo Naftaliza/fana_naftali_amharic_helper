@@ -205,6 +205,26 @@ export const api = {
     return res.blob();
   },
 
+  // Fetch one uploaded page's raw file (image/PDF) so the user can see what they photographed.
+  // <img>/<a> can't carry a bearer token, so this returns a blob for the caller to turn into
+  // an object URL — same pattern as speech() above.
+  documentPage: async (id: string, index: number): Promise<Blob> => {
+    const url = `${BASE}/api/documents/${id}/pages/${index}`;
+    const send = () => {
+      const headers = new Headers();
+      const token = tokenStore.access;
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      return fetch(url, { headers });
+    };
+    let res = await send();
+    if (res.status === 401 && (await refreshOnce())) res = await send();
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error ?? "Failed to load page");
+    }
+    return res.blob();
+  },
+
   // --- Sponsored referrals (no auth required — works for trial users too) ---
   getReferrals: (category: number) =>
     request<Provider[]>(`/api/referrals?category=${category}`),
