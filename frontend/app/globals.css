@@ -99,6 +99,11 @@ html.a11y-highlight-links a {
   background-color: rgba(245, 158, 11, 0.15);
 }
 
+/* LanguageGate: hidden outright, before paint, when the pre-paint script in layout.tsx already
+   found a stored language — otherwise a returning visitor sees it flash open for one frame while
+   React's mount effect catches up, then snap shut. See that script for why. */
+html.lang-chosen [data-language-gate] { display: none !important; }
+
 /* High contrast: force a light background with near-black text and strong borders. */
 html.a11y-contrast body { background: #ffffff !important; color: #000000 !important; }
 html.a11y-contrast .text-gray-400,

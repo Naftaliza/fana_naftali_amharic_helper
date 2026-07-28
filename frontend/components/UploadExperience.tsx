@@ -19,6 +19,15 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const ACCEPT = "image/*,application/pdf,.pdf,.jpg,.jpeg,.png";
 
+// Stable error codes lib/api.ts throws that aren't already localized text — same map pattern
+// as login/register pages, so e.g. a dropped connection doesn't surface the raw string
+// "NETWORK_ERROR" to a user who can't read English.
+const ERROR_MESSAGE_KEYS: Record<string, string> = {
+  NETWORK_ERROR: "auth.networkError",
+  RATE_LIMITED: "auth.tooManyAttempts",
+  UPLOAD_TOO_LARGE: "upload.tooLarge",
+};
+
 /**
  * The core "upload a document and understand it" experience. Used as the home page (/)
  * and at /upload. Handles both the anonymous free-trial flow and the logged-in flow.
@@ -62,7 +71,7 @@ export function UploadExperience() {
       }
     } catch (err) {
       const msg = (err as Error).message;
-      setError(msg === "UPLOAD_TOO_LARGE" ? t("upload.tooLarge") : msg);
+      setError(ERROR_MESSAGE_KEYS[msg] ? t(ERROR_MESSAGE_KEYS[msg]) : msg);
       setBusy(false);
     }
   };

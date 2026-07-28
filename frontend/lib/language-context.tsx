@@ -9,6 +9,10 @@ interface LanguageContextValue {
   setLanguage: (lang: Language) => void;
   t: (key: string) => string;
   rtl: boolean;
+  // False until the user has explicitly picked a language (via LanguageGate) or one was
+  // already stored from a prior visit — distinct from `language` itself, which always has
+  // a value (defaulting to Hebrew), so components can tell "chosen" apart from "guessed".
+  languageChosen: boolean;
 }
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
@@ -16,10 +20,14 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 export function LanguageProvider({ children }: { children: ReactNode }) {
   // Hebrew is the default language.
   const [language, setLanguageState] = useState<Language>("he");
+  const [languageChosen, setLanguageChosen] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem("lang") as Language | null;
-    if (stored) setLanguageState(stored);
+    if (stored) {
+      setLanguageState(stored);
+      setLanguageChosen(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -30,12 +38,13 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const setLanguage = (lang: Language) => {
     window.localStorage.setItem("lang", lang);
     setLanguageState(lang);
+    setLanguageChosen(true);
   };
 
   const t = (key: string) => dictionaries[language][key] ?? key;
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, rtl: isRtl(language) }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, rtl: isRtl(language), languageChosen }}>
       {children}
     </LanguageContext.Provider>
   );

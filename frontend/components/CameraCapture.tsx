@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Camera, X, SwitchCamera, RotateCcw, Check, ImageUp, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { AlertTriangle, Camera, X, SwitchCamera, RotateCcw, Check, ImageUp, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
+import { assessCanvas, type QualityVerdict } from "@/lib/imageQuality";
 
 type Facing = "environment" | "user";
 type Page = { url: string; file: File };
+type Preview = { url: string; file: File; quality: QualityVerdict };
 
 /**
  * Full-screen in-app camera supporting multi-page capture. Shows a live preview, captures a frame to
@@ -26,7 +28,7 @@ export function CameraCapture({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [facing, setFacing] = useState<Facing>("environment");
-  const [preview, setPreview] = useState<{ url: string; file: File } | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
@@ -101,11 +103,14 @@ export function CameraCapture({
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d")?.drawImage(video, 0, 0);
+    // Assess focus/exposure on the full-res canvas before it's compressed to JPEG — cheap
+    // (downscaled internally) and lets the review screen warn before the ~60s OCR round trip.
+    const quality = assessCanvas(canvas)?.verdict ?? "ok";
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
         const file = new File([blob], `photo-${pages.length + 1}.jpg`, { type: "image/jpeg" });
-        setPreview({ url: URL.createObjectURL(blob), file });
+        setPreview({ url: URL.createObjectURL(blob), file, quality });
         stop(); // freeze on the captured shot; turn the camera off during review
       },
       "image/jpeg",
@@ -210,8 +215,26 @@ export function CameraCapture({
             </button>
           </div>
         ) : preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview.url} alt={t("camera.preview")} className="h-full w-full object-contain" />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview.url} alt={t("camera.preview")} className="h-full w-full object-contain" />
+            {/* Quality gate — a photo that fails the blur/exposure check can't be accepted:
+                "Use photo" and "Add page" are disabled below, forcing a retake. Camera-path
+                only (see lib/imageQuality.ts) — a file picked from the gallery isn't checked,
+                so that always stays an escape hatch if retaking repeatedly doesn't help. */}
+            {preview.quality !== "ok" && (
+              <div role="status" className="absolute inset-x-4 top-4 flex items-center gap-2 rounded-xl bg-amber-500/95 px-4 py-3 text-sm font-medium text-white shadow-soft">
+                <AlertTriangle className="h-5 w-5 shrink-0" />
+                {t(
+                  preview.quality === "blurry"
+                    ? "camera.blurWarning"
+                    : preview.quality === "dark"
+                      ? "camera.darkWarning"
+                      : "camera.brightWarning"
+                )}
+              </div>
+            )}
+          </>
         ) : (
           <>
             <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
@@ -271,14 +294,18 @@ export function CameraCapture({
           {preview ? (
             <>
               <button onClick={retake} className="flex flex-col items-center gap-1 text-white">
-                <span className="grid h-14 w-14 place-items-center rounded-full bg-white/15"><RotateCcw className="h-7 w-7" /></span>
+                <span className={`grid h-14 w-14 place-items-center rounded-full ${preview.quality !== "ok" ? "bg-amber-500 ring-4 ring-amber-300/50" : "bg-white/15"}`}>
+                  <RotateCcw className="h-7 w-7" />
+                </span>
                 <span className="text-sm">{t("camera.retake")}</span>
               </button>
-              <button onClick={useAndFinish} className="flex flex-col items-center gap-1 text-white">
+              <button onClick={useAndFinish} disabled={preview.quality !== "ok"}
+                className="flex flex-col items-center gap-1 text-white disabled:opacity-40">
                 <span className="grid h-16 w-16 place-items-center rounded-full bg-brand"><Check className="h-8 w-8" /></span>
                 <span className="text-sm">{t("camera.use")}</span>
               </button>
-              <button onClick={addPage} className="flex flex-col items-center gap-1 text-white">
+              <button onClick={addPage} disabled={preview.quality !== "ok"}
+                className="flex flex-col items-center gap-1 text-white disabled:opacity-40">
                 <span className="grid h-14 w-14 place-items-center rounded-full bg-white/15"><Plus className="h-7 w-7" /></span>
                 <span className="text-sm">{t("camera.addPage")}</span>
               </button>

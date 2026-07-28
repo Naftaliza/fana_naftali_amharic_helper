@@ -9,22 +9,7 @@ import { useLanguage } from "@/lib/language-context";
 import { useOrganization } from "@/lib/organization-context";
 import { useTheme } from "@/lib/theme-context";
 import { LANGUAGES } from "@/lib/types";
-
-function Flag({ code, size = 24 }: { code: string; size?: number }) {
-  const h = Math.round((size / 4) * 3);
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={`https://flagcdn.com/${size}x${h}/${code}.png`}
-      srcSet={`https://flagcdn.com/${size * 2}x${h * 2}/${code}.png 2x`}
-      width={size}
-      height={h}
-      alt=""
-      aria-hidden="true"
-      className="rounded-sm shadow-sm"
-    />
-  );
-}
+import { Flag } from "@/components/ui/Flag";
 
 export function Navbar() {
   const { t, language, setLanguage } = useLanguage();
