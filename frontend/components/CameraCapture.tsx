@@ -127,6 +127,13 @@ export function CameraCapture({
     startStream(facing);
   };
 
+  // Finish immediately with the reviewed shot plus any pages already added — the one-tap
+  // path for a single-page document, so users aren't forced through "Add page" then "Done".
+  const useAndFinish = () => {
+    if (!preview) return;
+    onCapture([...pages.map((p) => p.file), preview.file]);
+  };
+
   const removePage = (index: number) => {
     setPages((p) => {
       const target = p[index];
@@ -267,8 +274,12 @@ export function CameraCapture({
                 <span className="grid h-14 w-14 place-items-center rounded-full bg-white/15"><RotateCcw className="h-7 w-7" /></span>
                 <span className="text-sm">{t("camera.retake")}</span>
               </button>
+              <button onClick={useAndFinish} className="flex flex-col items-center gap-1 text-white">
+                <span className="grid h-16 w-16 place-items-center rounded-full bg-brand"><Check className="h-8 w-8" /></span>
+                <span className="text-sm">{t("camera.use")}</span>
+              </button>
               <button onClick={addPage} className="flex flex-col items-center gap-1 text-white">
-                <span className="grid h-16 w-16 place-items-center rounded-full bg-brand"><Plus className="h-8 w-8" /></span>
+                <span className="grid h-14 w-14 place-items-center rounded-full bg-white/15"><Plus className="h-7 w-7" /></span>
                 <span className="text-sm">{t("camera.addPage")}</span>
               </button>
             </>
