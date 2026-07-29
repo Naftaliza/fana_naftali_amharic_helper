@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { MessageCircle, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, MessageCircle, Sparkles, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/lib/language-context";
 import { DOCUMENT_STATUS, type DocumentDetail } from "@/lib/types";
@@ -19,7 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 const POLL_INTERVAL_MS = 1500;
 
 export default function DocumentDetailPage() {
-  const { t } = useLanguage();
+  const { t, rtl } = useLanguage();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -94,9 +94,18 @@ export default function DocumentDetailPage() {
 
   const ocrInProgress = doc.status === DOCUMENT_STATUS.Pending || doc.status === DOCUMENT_STATUS.Processing;
   const ocrFailed = doc.status === DOCUMENT_STATUS.Failed;
+  const Back = rtl ? ArrowRight : ArrowLeft;
 
   return (
     <div className="space-y-6">
+      <Link
+        href="/dashboard"
+        className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-brand dark:text-gray-400"
+      >
+        <Back className="h-4 w-4" />
+        {t("doc.backToDashboard")}
+      </Link>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">{doc.fileName}</h1>
         {doc.analysis ? (
