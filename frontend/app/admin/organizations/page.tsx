@@ -16,6 +16,7 @@ import type {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const CATEGORY_KEYS = [
   "cat.government", "cat.bank", "cat.insurance", "cat.employment",
@@ -48,6 +49,7 @@ export default function AdminOrganizationsPage() {
   const [editing, setEditing] = useState<OrganizationSummary | null>(null);
   const [selected, setSelected] = useState<OrganizationSummary | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+  const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -57,9 +59,7 @@ export default function AdminOrganizationsPage() {
   const reload = () => api.adminListOrganizations().then(setOrgs).catch(() => setOrgs([]));
   useEffect(() => { if (user?.isAdmin) reload(); }, [user]);
 
-  const toggleStatus = async (o: OrganizationSummary) => {
-    const next = !o.isActive;
-    if (next === false && !window.confirm(t("org.deactivateConfirm"))) return;
+  const setActive = async (o: OrganizationSummary, next: boolean) => {
     setStatusBusyId(o.id);
     try {
       await api.adminSetOrganizationStatus(o.id, next);
@@ -67,6 +67,13 @@ export default function AdminOrganizationsPage() {
     } finally {
       setStatusBusyId(null);
     }
+  };
+
+  // Only deactivating needs confirmation — reactivating is harmless and reversible.
+  const toggleStatus = (o: OrganizationSummary) => {
+    const next = !o.isActive;
+    if (next === false) { setConfirmDeactivateId(o.id); return; }
+    setActive(o, next);
   };
 
   if (loading || !user?.isAdmin) {
@@ -174,6 +181,20 @@ export default function AdminOrganizationsPage() {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={confirmDeactivateId !== null}
+        title={t("org.deactivate")}
+        body={t("org.deactivateConfirm")}
+        confirmLabel={t("org.deactivate")}
+        destructive
+        onConfirm={() => {
+          const org = orgs?.find((o) => o.id === confirmDeactivateId);
+          setConfirmDeactivateId(null);
+          if (org) setActive(org, false);
+        }}
+        onCancel={() => setConfirmDeactivateId(null)}
+      />
     </div>
     </div>
   );

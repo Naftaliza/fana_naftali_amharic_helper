@@ -13,6 +13,7 @@ import { DocumentPages } from "@/components/DocumentPages";
 import { ShareButton } from "@/components/ShareButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 // How often to poll GET /documents/{id} while the background OCR pipeline (DocumentProcessor)
 // is still working through the document's pages.
@@ -27,6 +28,7 @@ export default function DocumentDetailPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const startedRef = useRef(false); // guard so auto-analyze runs only once
 
   // Cancel while still waiting (upload/OCR/analysis) — processing is already running
@@ -35,7 +37,6 @@ export default function DocumentDetailPage() {
   // silent-failure convention as the dashboard's own delete button: leave the page in place
   // so the user can just try again.
   const cancel = async () => {
-    if (!window.confirm(t("doc.confirmDelete"))) return;
     setCancelling(true);
     try {
       await api.deleteDocument(id);
@@ -118,7 +119,7 @@ export default function DocumentDetailPage() {
         ) : (
           // Still waiting (upload/OCR/analysis) or it failed with nothing to show yet —
           // give the user a way out instead of being stuck watching a spinner.
-          <Button variant="outline" onClick={cancel} disabled={cancelling}>
+          <Button variant="outline" onClick={() => setConfirmingCancel(true)} disabled={cancelling}>
             <X className="h-5 w-5" />{t("doc.cancel")}
           </Button>
         )}
@@ -163,6 +164,16 @@ export default function DocumentDetailPage() {
       )}
 
       {doc.analysis && <AnalysisCard analysis={doc.analysis} documentId={id} />}
+
+      <ConfirmDialog
+        open={confirmingCancel}
+        title={t("doc.delete")}
+        body={t("doc.confirmDelete")}
+        confirmLabel={t("doc.delete")}
+        destructive
+        onConfirm={() => { setConfirmingCancel(false); cancel(); }}
+        onCancel={() => setConfirmingCancel(false)}
+      />
     </div>
   );
 }

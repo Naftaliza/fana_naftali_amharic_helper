@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { LANGUAGES } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function ProfilePage() {
   const { t } = useLanguage();
@@ -16,6 +17,7 @@ export default function ProfilePage() {
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -45,7 +47,6 @@ export default function ProfilePage() {
   };
 
   const deleteAccount = async () => {
-    if (!window.confirm(t("profile.deleteAccountConfirm"))) return;
     setError(null);
     setDeleting(true);
     try {
@@ -78,7 +79,7 @@ export default function ProfilePage() {
           <Button
             variant="outline"
             className="w-full border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/40"
-            onClick={deleteAccount}
+            onClick={() => setConfirming(true)}
             disabled={deleting}
           >
             {t("profile.deleteAccount")}
@@ -86,6 +87,16 @@ export default function ProfilePage() {
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirming}
+        title={t("profile.deleteAccount")}
+        body={t("profile.deleteAccountConfirm")}
+        confirmLabel={t("profile.deleteAccount")}
+        destructive
+        onConfirm={() => { setConfirming(false); deleteAccount(); }}
+        onCancel={() => setConfirming(false)}
+      />
     </div>
   );
 }

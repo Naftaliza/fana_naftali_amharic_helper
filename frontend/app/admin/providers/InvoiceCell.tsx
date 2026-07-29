@@ -5,6 +5,7 @@ import { FileText } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/lib/language-context";
 import type { Invoice } from "@/lib/types";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 // Per-provider "generate & send invoice" cell for the Leads tab's by-provider table. Split into
 // its own file (rather than a local function in page.tsx) because a Next.js App Router page.tsx
@@ -21,6 +22,7 @@ export function InvoiceCell({
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -40,7 +42,6 @@ export function InvoiceCell({
   };
 
   const generate = async () => {
-    if (!window.confirm(t("invoice.confirm"))) return;
     setBusy(true);
     setError(null);
     try {
@@ -76,7 +77,7 @@ export function InvoiceCell({
   return (
     <span className="inline-flex flex-col items-end gap-1">
       <button
-        onClick={generate}
+        onClick={() => setConfirming(true)}
         disabled={busy || !hasEmail}
         title={hasEmail ? undefined : t("invoice.noEmailTooltip")}
         className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800"
@@ -84,6 +85,15 @@ export function InvoiceCell({
         {busy ? t("invoice.generating") : t("invoice.generate")}
       </button>
       {error && <span className="text-xs text-red-600">{error}</span>}
+
+      <ConfirmDialog
+        open={confirming}
+        title={t("invoice.generate")}
+        body={t("invoice.confirm")}
+        confirmLabel={t("invoice.generate")}
+        onConfirm={() => { setConfirming(false); generate(); }}
+        onCancel={() => setConfirming(false)}
+      />
     </span>
   );
 }

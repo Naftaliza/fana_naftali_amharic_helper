@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { InvoiceCell } from "@/app/admin/providers/InvoiceCell";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const CATEGORY_KEYS = [
   "cat.government", "cat.bank", "cat.insurance", "cat.employment",
@@ -132,12 +133,12 @@ export default function AdminProvidersPage() {
     const [list, setList] = useState<ManagedProvider[] | null>(null);
     const [editId, setEditId] = useState<string | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
+    const [confirmId, setConfirmId] = useState<string | null>(null);
 
     const reload = () => api.adminListProviders().then(setList).catch(() => setList([]));
     useEffect(() => { reload(); }, []);
 
     const remove = async (id: string) => {
-      if (!window.confirm(t("doc.confirmDelete"))) return;
       setBusyId(id);
       try { await api.adminReject(id); setList((l) => (l ?? []).filter((p) => p.id !== id)); }
       finally { setBusyId(null); }
@@ -155,6 +156,7 @@ export default function AdminProvidersPage() {
     if (list.length === 0) return <p className="text-gray-500 dark:text-gray-400">{t("admin.noneLive")}</p>;
 
     return (
+      <>
       <ul className="space-y-3">
         {list.map((p) =>
           editId === p.id ? (
@@ -184,7 +186,7 @@ export default function AdminProvidersPage() {
                       {p.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       {p.isActive ? t("admin.deactivate") : t("admin.activate")}
                     </button>
-                    <button onClick={() => remove(p.id)} disabled={busyId === p.id}
+                    <button onClick={() => setConfirmId(p.id)} disabled={busyId === p.id}
                       className="inline-flex items-center gap-1 rounded-full border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:hover:bg-red-950">
                       <Trash2 className="h-4 w-4" />{t("admin.delete")}
                     </button>
@@ -195,6 +197,16 @@ export default function AdminProvidersPage() {
           )
         )}
       </ul>
+      <ConfirmDialog
+        open={confirmId !== null}
+        title={t("admin.delete")}
+        body={t("admin.provider.confirmDelete")}
+        confirmLabel={t("admin.delete")}
+        destructive
+        onConfirm={() => { const id = confirmId!; setConfirmId(null); remove(id); }}
+        onCancel={() => setConfirmId(null)}
+      />
+      </>
     );
   }
 

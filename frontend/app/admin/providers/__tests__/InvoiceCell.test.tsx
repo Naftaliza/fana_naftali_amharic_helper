@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { InvoiceCell } from "@/app/admin/providers/InvoiceCell";
 import { LanguageProvider } from "@/lib/language-context";
 import { api } from "@/lib/api";
@@ -57,16 +57,29 @@ describe("InvoiceCell", () => {
     expect(button).toHaveAttribute("title");
   });
 
-  it("generates an invoice when clicked and shows the resulting status badge", async () => {
+  it("shows a ConfirmDialog instead of window.confirm before generating", async () => {
+    mockedApi.adminInvoiceStatus.mockResolvedValue(null);
+    renderCell({ hasEmail: true });
+
+    const button = await screen.findByRole("button");
+    fireEvent.click(button);
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mockedApi.adminGenerateInvoice).not.toHaveBeenCalled();
+  });
+
+  it("generates an invoice once confirmed and shows the resulting status badge", async () => {
     mockedApi.adminInvoiceStatus.mockResolvedValue(null);
     mockedApi.adminGenerateInvoice.mockResolvedValue(invoice);
-    jest.spyOn(window, "confirm").mockReturnValue(true);
 
     renderCell({ hasEmail: true });
 
     const button = await screen.findByRole("button");
     expect(button).toBeEnabled();
     fireEvent.click(button);
+
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /generate|חשבונית/i }));
 
     await waitFor(() => expect(mockedApi.adminGenerateInvoice).toHaveBeenCalledWith("p1", 2026, 7));
     // The generate button is replaced by the status badge once an invoice exists.

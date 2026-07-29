@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { DOCUMENT_STATUS, type DocumentSummary } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function DashboardPage() {
   const { t } = useLanguage();
@@ -18,16 +19,24 @@ export default function DashboardPage() {
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
   const [fetching, setFetching] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const requestDelete = (id: string, e: React.MouseEvent) => {
     e.preventDefault(); // don't navigate into the document
-    if (!window.confirm(t("doc.confirmDelete"))) return;
+    setDeleteError(null);
+    setConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
+    const id = confirmId!;
+    setConfirmId(null);
     setDeletingId(id);
     try {
       await api.deleteDocument(id);
       setDocs((list) => list.filter((d) => d.id !== id));
     } catch {
-      // leave the row in place if the delete failed
+      setDeleteError(t("doc.deleteError"));
     } finally {
       setDeletingId(null);
     }
@@ -78,7 +87,7 @@ export default function DashboardPage() {
                   )}
                 </Link>
                 <button
-                  onClick={(e) => handleDelete(d.id, e)}
+                  onClick={(e) => requestDelete(d.id, e)}
                   disabled={deletingId === d.id}
                   aria-label={t("doc.delete")}
                   title={t("doc.delete")}
@@ -91,6 +100,18 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
+
+      {deleteError && <p role="alert" className="text-sm text-red-600">{deleteError}</p>}
+
+      <ConfirmDialog
+        open={confirmId !== null}
+        title={t("doc.delete")}
+        body={t("doc.confirmDelete")}
+        confirmLabel={t("doc.delete")}
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmId(null)}
+      />
     </div>
   );
 }
