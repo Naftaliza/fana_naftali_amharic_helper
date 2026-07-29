@@ -50,6 +50,7 @@ export default function CheckEmailPage() {
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {t("auth.checkEmailBodyPrefix")} <strong>{email}</strong>.
           </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t("auth.checkEmailExpiry")}</p>
           {sent ? (
             <p className="text-sm text-green-600">{t("auth.resendVerificationSent")}</p>
           ) : (
@@ -60,6 +61,10 @@ export default function CheckEmailPage() {
               </Button>
             </>
           )}
+          <p className="text-center text-sm text-gray-600 dark:text-gray-400">
+            {t("auth.wrongEmail")}{" "}
+            <Link href="/register" className="text-brand hover:underline">{t("auth.editRegistration")}</Link>
+          </p>
           <p className="text-center text-sm text-gray-600 dark:text-gray-400">
             <Link href="/login" className="text-brand hover:underline">{t("auth.backToLogin")}</Link>
           </p>

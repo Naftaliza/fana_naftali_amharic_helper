@@ -37,7 +37,7 @@ public class TrialController(IMediator mediator) : ControllerBase
     [HttpPost("speech")]
     public async Task<IActionResult> Speech(TrialSpeechRequest request)
     {
-        var result = await mediator.Send(new SpeakTrialQuery(request.Analysis, request.Language));
+        var result = await mediator.Send(new SpeakTrialQuery(request.Analysis, request.Language, request.Section));
         if (!result.Success || result.Value is null)
             return BadRequest(new { error = result.Error });
         return File(result.Value.Content, result.Value.ContentType);

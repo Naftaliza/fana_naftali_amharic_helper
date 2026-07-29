@@ -41,10 +41,17 @@ export function ReferralBlock({
     let cancelled = false;
     api
       .getReferrals(category)
-      .then((list) => { if (!cancelled) setProviders(list); })
+      .then((list) => {
+        if (cancelled) return;
+        // loc() falls back silently across languages, which would otherwise show e.g. Hebrew
+        // blurb text to an Amharic-language user under UI that promises Amharic-speaking
+        // professionals. A provider who hasn't filled in a blurb for the viewer's language is
+        // hidden rather than mistranslated.
+        setProviders(list.filter((p) => p.blurb?.[language]?.trim()));
+      })
       .catch(() => { if (!cancelled) setProviders([]); }); // referrals are optional — fail silent
     return () => { cancelled = true; };
-  }, [category, urgency]);
+  }, [category, urgency, language]);
 
   if (providers.length === 0) return null;
 

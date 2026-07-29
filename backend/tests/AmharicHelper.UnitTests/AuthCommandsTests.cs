@@ -110,9 +110,9 @@ public class AuthCommandsTests
     }
 
     [Fact]
-    public async Task Register_rejects_a_duplicate_email()
+    public async Task Register_rejects_a_duplicate_verified_email()
     {
-        var users = new FakeUserRepository { ToReturn = new User { Email = "new@test.local" } };
+        var users = new FakeUserRepository { ToReturn = new User { Email = "new@test.local", EmailVerified = true } };
         var handler = new RegisterHandler(users, new FakeOrganizationRepository(), Hasher, new FakeEmailSender(), Config(), new FakeEventTracker(), NullLogger<RegisterHandler>.Instance);
 
         var result = await handler.Handle(
@@ -120,6 +120,30 @@ public class AuthCommandsTests
 
         Assert.False(result.Success);
         Assert.Null(users.Added);
+        Assert.Null(users.Updated);
+    }
+
+    [Fact]
+    public async Task Register_reissues_an_abandoned_unverified_registration_for_the_same_email()
+    {
+        // A never-verified account (e.g. a mistyped/unreachable address, or a lost verification
+        // email) previously left that address permanently stuck — "Email already registered"
+        // forever, with no way to correct it and try again. Re-registering it should overwrite
+        // the abandoned row instead of blocking it.
+        var users = new FakeUserRepository { ToReturn = new User { Email = "new@test.local", DisplayName = "Old Name", EmailVerified = false } };
+        var emailSender = new FakeEmailSender();
+        var handler = new RegisterHandler(users, new FakeOrganizationRepository(), Hasher, emailSender, Config(), new FakeEventTracker(), NullLogger<RegisterHandler>.Instance);
+
+        var result = await handler.Handle(
+            new RegisterCommand(new RegisterRequest("new@test.local", "password123", "New Name", AmharicHelper.Domain.Enums.Language.Hebrew)), default);
+
+        Assert.True(result.Success);
+        Assert.Null(users.Added);
+        Assert.NotNull(users.Updated);
+        Assert.Equal("New Name", users.Updated!.DisplayName);
+        Assert.False(users.Updated.EmailVerified);
+        Assert.NotNull(users.Updated.EmailVerificationTokenHash);
+        Assert.Single(emailSender.Sent);
     }
 
     // ---- LoginHandler ----

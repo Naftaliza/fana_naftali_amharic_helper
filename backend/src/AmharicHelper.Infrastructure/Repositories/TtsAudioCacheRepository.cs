@@ -5,27 +5,27 @@ using Dapper;
 
 namespace AmharicHelper.Infrastructure.Repositories;
 
-/// <summary>Stores synthesized TTS audio per (document, language) so listens are billed once.</summary>
+/// <summary>Stores synthesized TTS audio per (document, language, section) so listens are billed once.</summary>
 public class TtsAudioCacheRepository(ISqlConnectionFactory factory) : ITtsAudioCacheRepository
 {
-    public async Task<TtsAudio?> GetAsync(Guid documentId, Language language, CancellationToken ct = default)
+    public async Task<TtsAudio?> GetAsync(Guid documentId, Language language, SpokenSection section, CancellationToken ct = default)
     {
         using var conn = factory.Create();
         var row = await conn.QueryFirstOrDefaultAsync<CacheRow>(
-            "SELECT ContentType, Audio FROM TtsAudioCache WHERE DocumentId = @documentId AND Language = @language",
-            new { documentId, language = (int)language });
+            "SELECT ContentType, Audio FROM TtsAudioCache WHERE DocumentId = @documentId AND Language = @language AND Section = @section",
+            new { documentId, language = (int)language, section = (int)section });
         return row is null ? null : new TtsAudio(row.Audio, row.ContentType);
     }
 
-    public async Task SetAsync(Guid documentId, Language language, TtsAudio audio, CancellationToken ct = default)
+    public async Task SetAsync(Guid documentId, Language language, SpokenSection section, TtsAudio audio, CancellationToken ct = default)
     {
         using var conn = factory.Create();
-        // Upsert: keep a single row per (document, language).
+        // Upsert: keep a single row per (document, language, section).
         await conn.ExecuteAsync(
             """
-            INSERT INTO TtsAudioCache (DocumentId, Language, ContentType, Audio, CreatedAt)
-            VALUES (@DocumentId, @Language, @ContentType, @Audio, now())
-            ON CONFLICT (DocumentId, Language) DO UPDATE
+            INSERT INTO TtsAudioCache (DocumentId, Language, Section, ContentType, Audio, CreatedAt)
+            VALUES (@DocumentId, @Language, @Section, @ContentType, @Audio, now())
+            ON CONFLICT (DocumentId, Language, Section) DO UPDATE
                 SET ContentType = EXCLUDED.ContentType,
                     Audio = EXCLUDED.Audio,
                     CreatedAt = now();
@@ -34,6 +34,7 @@ public class TtsAudioCacheRepository(ISqlConnectionFactory factory) : ITtsAudioC
             {
                 DocumentId = documentId,
                 Language = (int)language,
+                Section = (int)section,
                 audio.ContentType,
                 Audio = audio.Content
             });

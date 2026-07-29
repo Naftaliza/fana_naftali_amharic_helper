@@ -11,6 +11,7 @@ import { ServiceWorker } from "@/components/ServiceWorker";
 import { AccessibilityWidget } from "@/components/AccessibilityWidget";
 import { LanguageGate } from "@/components/LanguageGate";
 import { Onboarding } from "@/components/Onboarding";
+import { OnboardingProvider } from "@/lib/onboarding-context";
 import { LeadFeedbackPrompt } from "@/components/LeadFeedbackPrompt";
 
 // Runs before paint to set the theme + accessibility options + whether a language has already
@@ -60,14 +61,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LanguageProvider>
             <AuthProvider>
               <OrganizationProvider>
-                <SkipLink />
-                <Navbar />
-                <main id="main" className="mx-auto max-w-6xl px-4 py-8">{children}</main>
-                <AccessibilityWidget />
-                <LanguageGate />
-                <Onboarding />
-                <LeadFeedbackPrompt />
-                <ServiceWorker />
+                <OnboardingProvider>
+                  <SkipLink />
+                  <Navbar />
+                  <main id="main" className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+                  <AccessibilityWidget />
+                  <LanguageGate />
+                  <Onboarding />
+                  <LeadFeedbackPrompt />
+                  <ServiceWorker />
+                </OnboardingProvider>
               </OrganizationProvider>
             </AuthProvider>
           </LanguageProvider>

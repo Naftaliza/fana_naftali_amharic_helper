@@ -78,11 +78,14 @@ public class DocumentsController(IMediator mediator) : ApiControllerBase(mediato
         return File(result.Value.Content, result.Value.ContentType);
     }
 
-    /// <summary>Synthesize spoken audio (MP3) of the document's analysis in the given language.</summary>
+    /// <summary>Synthesize spoken audio (MP3) of the document's analysis in the given language.
+    /// Section defaults to the whole walkthrough; pass e.g. Actions for a per-card "read just
+    /// this" button.</summary>
     [HttpGet("{id:guid}/speech")]
-    public async Task<IActionResult> Speech(Guid id, [FromQuery] Language language = Language.Hebrew)
+    public async Task<IActionResult> Speech(
+        Guid id, [FromQuery] Language language = Language.Hebrew, [FromQuery] SpokenSection section = SpokenSection.Full)
     {
-        var result = await Mediator.Send(new SpeakDocumentQuery(CurrentUserId, id, language));
+        var result = await Mediator.Send(new SpeakDocumentQuery(CurrentUserId, id, language, section));
         if (!result.Success || result.Value is null)
             return BadRequest(new { error = result.Error });
         return File(result.Value.Content, result.Value.ContentType);

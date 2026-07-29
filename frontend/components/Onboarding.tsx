@@ -5,6 +5,7 @@ import { Camera, HandHelping, Languages, X } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { hasSeenOnboarding, markOnboardingSeen } from "@/lib/onboarding";
+import { useOnboarding } from "@/lib/onboarding-context";
 import { Button } from "@/components/ui/button";
 
 const STEPS = [
@@ -14,26 +15,34 @@ const STEPS = [
 ] as const;
 
 /**
- * One-time, 3-step walkthrough shown to new anonymous visitors before the uploader,
- * so the value prop (photograph -> understand -> get expert help) lands before the
- * trial counter starts ticking. Dismissed permanently via a localStorage flag, same
- * pattern as lib/trial.ts.
+ * 3-step walkthrough shown to new anonymous visitors before the uploader, so the value prop
+ * (photograph -> understand -> get expert help) lands before the trial counter starts ticking.
+ * Auto-shows once per visitor (localStorage flag, same pattern as lib/trial.ts), but can also be
+ * re-opened any time — by anyone, signed in or not — via useOnboarding().show() (see the Help
+ * page), since a first glance isn't always enough and there was previously no way back in.
  */
 export function Onboarding() {
   const { t, rtl, languageChosen } = useLanguage();
   const { user, loading } = useAuth();
-  const [open, setOpen] = useState(false);
+  const { open, show, hide } = useOnboarding();
   const [step, setStep] = useState(0);
 
   useEffect(() => {
     // Wait for the language gate to be resolved so onboarding never renders in the wrong
-    // language behind it.
-    if (!loading && !user && languageChosen && !hasSeenOnboarding()) setOpen(true);
-  }, [loading, user, languageChosen]);
+    // language behind it. Auto-show stays anonymous-only — it's timed to land before the trial
+    // counter starts ticking, which doesn't apply to a signed-in user.
+    if (!loading && !user && languageChosen && !hasSeenOnboarding()) show();
+  }, [loading, user, languageChosen, show]);
+
+  // Always start from step 1 whenever the dialog (re-)opens, whether that's the automatic
+  // first-run show or a manual replay from the Help page.
+  useEffect(() => {
+    if (open) setStep(0);
+  }, [open]);
 
   const close = () => {
     markOnboardingSeen();
-    setOpen(false);
+    hide();
   };
 
   if (!open) return null;

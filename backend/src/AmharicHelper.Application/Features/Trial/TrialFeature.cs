@@ -51,14 +51,15 @@ public class AnalyzeTrialHandler(IOcrProvider ocr, IAiProvider ai)
     }
 }
 
-/// <summary>Anonymous trial text-to-speech. Builds the spoken text from the supplied analysis.</summary>
-public record SpeakTrialQuery(DocumentAnalysisResult Analysis, Language Language) : IRequest<Result<TtsAudio>>;
+/// <summary>Anonymous trial text-to-speech. Builds the spoken text from the supplied analysis.
+/// Section defaults to the whole walkthrough.</summary>
+public record SpeakTrialQuery(DocumentAnalysisResult Analysis, Language Language, SpokenSection Section = SpokenSection.Full) : IRequest<Result<TtsAudio>>;
 
 public class SpeakTrialHandler(ITtsProvider tts) : IRequestHandler<SpeakTrialQuery, Result<TtsAudio>>
 {
     public async Task<Result<TtsAudio>> Handle(SpeakTrialQuery q, CancellationToken ct)
     {
-        var text = SpokenTextBuilder.Build(q.Analysis, q.Language);
+        var text = SpokenTextBuilder.Build(q.Analysis, q.Language, q.Section);
         if (string.IsNullOrWhiteSpace(text))
             return Result<TtsAudio>.Fail("Nothing to read.");
 

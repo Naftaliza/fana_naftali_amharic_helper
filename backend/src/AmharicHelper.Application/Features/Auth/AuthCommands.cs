@@ -36,7 +36,15 @@ public class RegisterHandler(
     {
         var req = cmd.Request;
         var normalizedEmail = EmailNormalizer.Normalize(req.Email);
-        if (await users.GetByEmailAsync(normalizedEmail, ct) is not null)
+        var existing = await users.GetByEmailAsync(normalizedEmail, ct);
+
+        // Only a verified (actually claimed) account blocks re-registration. An unverified row
+        // never got past step one — e.g. a mistyped/unreachable address, a verification email
+        // lost to spam, or simply changing their mind before clicking the link — and previously
+        // left that address permanently stuck with no way back in except "resend" (same token,
+        // same address, no chance to fix a mistake). Overwriting it in place lets the address be
+        // re-registered instead.
+        if (existing is { EmailVerified: true })
             return Result<RegisterResponse>.Fail("Email already registered.");
 
         // Registering through a tenant-branded front end tags the new user as that org's
@@ -51,18 +59,33 @@ public class RegisterHandler(
         // Account starts unverified — no JWTs are issued until the emailed link is clicked
         // (see VerifyEmailHandler), same single-use hashed-token pattern as password reset.
         var rawToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        var user = new User
+        User user;
+        if (existing is not null)
         {
-            Email = normalizedEmail,
-            DisplayName = req.DisplayName,
-            PreferredLanguage = req.PreferredLanguage,
-            PasswordHash = hasher.Hash(req.Password),
-            OrganizationId = organizationId,
-            EmailVerified = false,
-            EmailVerificationTokenHash = hasher.Hash(rawToken),
-            EmailVerificationExpiresAt = DateTime.UtcNow.AddHours(1)
-        };
-        await users.AddAsync(user, ct);
+            existing.DisplayName = req.DisplayName;
+            existing.PreferredLanguage = req.PreferredLanguage;
+            existing.PasswordHash = hasher.Hash(req.Password);
+            existing.OrganizationId = organizationId;
+            existing.EmailVerificationTokenHash = hasher.Hash(rawToken);
+            existing.EmailVerificationExpiresAt = DateTime.UtcNow.AddHours(1);
+            user = existing;
+            await users.UpdateAsync(user, ct);
+        }
+        else
+        {
+            user = new User
+            {
+                Email = normalizedEmail,
+                DisplayName = req.DisplayName,
+                PreferredLanguage = req.PreferredLanguage,
+                PasswordHash = hasher.Hash(req.Password),
+                OrganizationId = organizationId,
+                EmailVerified = false,
+                EmailVerificationTokenHash = hasher.Hash(rawToken),
+                EmailVerificationExpiresAt = DateTime.UtcNow.AddHours(1)
+            };
+            await users.AddAsync(user, ct);
+        }
         await events.TrackAsync(EventNames.UserRegistered, user.Id, ct);
 
         var origin = (config["Frontend:Origin"] ?? "http://localhost:3001").Split(',')[0].Trim();
@@ -86,7 +109,8 @@ public class RegisterHandler(
         }
 
         return Result<RegisterResponse>.Ok(new RegisterResponse(
-            "Account created. Check your email to verify your address and finish signing up.", user.Email));
+            "Account created. Check your email to verify your address and finish signing up. The link expires in 1 hour.",
+            user.Email));
     }
 }
 

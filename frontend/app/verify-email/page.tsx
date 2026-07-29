@@ -80,6 +80,10 @@ export default function VerifyEmailPage() {
                   {busy ? t("common.loading") : t("auth.resendVerification")}
                 </Button>
               )}
+              <p className="text-center text-sm text-gray-600 dark:text-gray-400">
+                {t("auth.wrongEmail")}{" "}
+                <Link href="/register" className="text-brand hover:underline">{t("auth.editRegistration")}</Link>
+              </p>
             </>
           )}
           <p className="text-center text-sm text-gray-600 dark:text-gray-400">

@@ -43,5 +43,6 @@ public record ChatMessageDto(Guid Id, ChatRole Role, string Content, DateTime Cr
 
 public record SendChatRequest(string Question, Language ResponseLanguage);
 
-/// <summary>Body for anonymous trial speech: the analysis to read and the target language.</summary>
-public record TrialSpeechRequest(DocumentAnalysisResult Analysis, Language Language);
+/// <summary>Body for anonymous trial speech: the analysis to read and the target language.
+/// Section defaults to the whole walkthrough.</summary>
+public record TrialSpeechRequest(DocumentAnalysisResult Analysis, Language Language, SpokenSection Section = SpokenSection.Full);

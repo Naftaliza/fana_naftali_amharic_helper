@@ -6,8 +6,10 @@ using MediatR;
 
 namespace AmharicHelper.Application.Features.Documents;
 
-/// <summary>Produce spoken audio of a document's analysis in the requested language.</summary>
-public record SpeakDocumentQuery(Guid UserId, Guid DocumentId, Language Language)
+/// <summary>Produce spoken audio of a document's analysis in the requested language. Section
+/// defaults to the whole walkthrough; a specific section serves per-card "read just the
+/// actions" playback instead.</summary>
+public record SpeakDocumentQuery(Guid UserId, Guid DocumentId, Language Language, SpokenSection Section = SpokenSection.Full)
     : IRequest<Result<TtsAudio>>;
 
 public class SpeakDocumentHandler(
@@ -22,8 +24,8 @@ public class SpeakDocumentHandler(
         if (doc is null || doc.UserId != q.UserId)
             return Result<TtsAudio>.Fail("Document not found.");
 
-        // Serve previously synthesized audio for this document+language for free.
-        var cached = await cache.GetAsync(q.DocumentId, q.Language, ct);
+        // Serve previously synthesized audio for this document+language+section for free.
+        var cached = await cache.GetAsync(q.DocumentId, q.Language, q.Section, ct);
         if (cached is not null)
             return Result<TtsAudio>.Ok(cached);
 
@@ -31,15 +33,15 @@ public class SpeakDocumentHandler(
         if (analysis is null)
             return Result<TtsAudio>.Fail("Document has not been analyzed yet.");
 
-        var text = SpokenTextBuilder.Build(analysis, q.Language);
+        var text = SpokenTextBuilder.Build(analysis, q.Language, q.Section);
         if (string.IsNullOrWhiteSpace(text))
             return Result<TtsAudio>.Fail("Nothing to read for this document.");
 
         try
         {
             var audio = await tts.SynthesizeAsync(text, q.Language, ct);
-            // Cache so this document+language is never billed again until re-analyzed.
-            await cache.SetAsync(q.DocumentId, q.Language, audio, ct);
+            // Cache so this document+language+section is never billed again until re-analyzed.
+            await cache.SetAsync(q.DocumentId, q.Language, q.Section, audio, ct);
             return Result<TtsAudio>.Ok(audio);
         }
         catch (InvalidOperationException ex)

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, ShieldCheck, Building2, BarChart3 } from "lucide-react";
+import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, HelpCircle, ShieldCheck, Building2, BarChart3 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useOrganization } from "@/lib/organization-context";
@@ -173,6 +173,9 @@ export function Navbar() {
                 {/* For businesses — public referral signup */}
                 <Link href="/partners" className={itemClass}>
                   <Briefcase className="h-5 w-5 text-brand" />{t("nav.partners")}
+                </Link>
+                <Link href="/help" className={itemClass}>
+                  <HelpCircle className="h-5 w-5 text-brand" />{t("nav.help")}
                 </Link>
                 {user?.isAdmin && (
                   <Link href="/admin/providers" className={itemClass}>

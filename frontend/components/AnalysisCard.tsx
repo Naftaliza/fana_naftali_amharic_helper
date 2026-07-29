@@ -8,6 +8,7 @@ import { LANGUAGE_ENUM, URGENCY_ENUM, isRtl, loc, type AnalysisResult } from "@/
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ReferralBlock } from "@/components/ReferralBlock";
+import { SectionAudioButton } from "@/components/SectionAudioButton";
 
 // Index = the backend's UrgencyLevel int (Low=0 .. Critical=3). The API serializes enums as ints
 // on the wire, but AnalysisResult's type says string — tolerate both (see the same normalization,
@@ -163,7 +164,10 @@ export function AnalysisCard({
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{t("doc.summary")}</CardTitle>
+          <div className="flex items-center gap-1">
+            <CardTitle>{t("doc.summary")}</CardTitle>
+            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Summary" label={t("doc.playSummary")} />
+          </div>
           <span className={`rounded-full px-3 py-1 text-sm font-medium ${URGENCY_COLOR_BY_INDEX[urgencyIndex] ?? URGENCY_COLOR_BY_INDEX[0]}`}>
             {t("doc.urgency")}: {t(URGENCY_KEYS[urgencyIndex] ?? "urg.low")}
           </span>
@@ -174,13 +178,26 @@ export function AnalysisCard({
         </CardContent>
       </Card>
 
-      {/* Sponsored referrals — placed high (right under the summary) so users see the offer
-          to get help while the document's urgency is fresh. Renders nothing when none match. */}
+      {/* Directly under the summary, matching the spoken walkthrough's order (summary, then
+          explanation) so a listener following along sees the same passage being read aloud. */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg">{t("doc.explanation")}</CardTitle>
+          <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Explanation" label={t("doc.playExplanation")} />
+        </CardHeader>
+        <CardContent><p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300" dir={dir}>{loc(analysis.explanation, language)}</p></CardContent>
+      </Card>
+
+      {/* Sponsored referrals — placed high (right under the summary/explanation) so users see the
+          offer to get help while the document's urgency is fresh. Renders nothing when none match. */}
       <ReferralBlock analysis={analysis} documentId={documentId} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ListChecks className="h-5 w-5 text-brand" />{t("doc.keyPoints")}</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg"><ListChecks className="h-5 w-5 text-brand" />{t("doc.keyPoints")}</CardTitle>
+            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="KeyPoints" label={t("doc.playKeyPoints")} />
+          </CardHeader>
           <CardContent>
             <ul className="list-inside list-disc space-y-1 text-gray-700 dark:text-gray-300" dir={dir}>
               {analysis.keyPoints.map((p, i) => <li key={i}>{loc(p, language)}</li>)}
@@ -189,7 +206,10 @@ export function AnalysisCard({
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CheckSquare className="h-5 w-5 text-brand" />{t("doc.actions")}</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg"><CheckSquare className="h-5 w-5 text-brand" />{t("doc.actions")}</CardTitle>
+            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Actions" label={t("doc.playActions")} />
+          </CardHeader>
           <CardContent>
             <ul className="space-y-2 text-gray-700 dark:text-gray-300" dir={dir}>
               {analysis.requiredActions.map((a, i) => (
@@ -204,7 +224,10 @@ export function AnalysisCard({
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Calendar className="h-5 w-5 text-brand" />{t("doc.deadlines")}</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg"><Calendar className="h-5 w-5 text-brand" />{t("doc.deadlines")}</CardTitle>
+          <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Deadlines" label={t("doc.playDeadlines")} />
+        </CardHeader>
         <CardContent>
           {analysis.deadlines.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400">—</p>
@@ -218,11 +241,6 @@ export function AnalysisCard({
             </ul>
           )}
         </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle className="text-lg">{t("doc.explanation")}</CardTitle></CardHeader>
-        <CardContent><p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300" dir={dir}>{loc(analysis.explanation, language)}</p></CardContent>
       </Card>
     </div>
   );

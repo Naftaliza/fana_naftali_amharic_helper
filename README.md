@@ -41,7 +41,27 @@ can help with that document.
 > so they can verify the app read the right document. The in-app camera
 > (`CameraCapture`) runs a client-side blur/exposure check (`lib/imageQuality.ts`,
 > a Laplacian-variance pass) on every capture and warns (never blocks) before a
-> bad photo costs the ~60s OCR+analysis round trip.
+> bad photo costs the ~60s OCR+analysis round trip. The spoken walkthrough
+> (`SpokenTextBuilder`) reads the summary and the detailed explanation as two
+> separate labeled passages — matching the on-screen order (Summary card, then
+> Explanation card directly below it) — and reads required actions with an
+> audible "Required:" prefix for the ones marked mandatory. Beyond the one
+> all-or-nothing walkthrough, every analysis card (Summary, Explanation, Key
+> points, Actions, Deadlines) has its own small play button
+> (`SectionAudioButton`) so a low-literacy user can listen to just one passage —
+> e.g. "just the actions" — instead of the whole document (`TtsAudioCache` is
+> keyed per document+language+section). The first-run onboarding walkthrough
+> can now be replayed any time — signed in or not — from a `/help` page
+> (`OnboardingProvider`/`useOnboarding`), which also has a short FAQ and a
+> support-email link. Registering with an email that already has an
+> unverified, never-completed signup (a typo, a lost verification email, a
+> change of mind) no longer permanently blocks that address — re-registering it
+> overwrites the abandoned row instead of failing forever — and the "check your
+> email" / verification pages now state the link's 1-hour expiry and link back
+> to `/register` for a wrong-address correction. The sponsored-referral list
+> hides a provider whose blurb was never filled in for the viewer's chosen
+> language, rather than silently falling back to another language's text (which
+> previously could show Hebrew copy to an Amharic-language user).
 
 ![Sample generated invoice PDF, branded with the Fana logo and colors](docs/invoice-sample.png)
 
@@ -51,7 +71,7 @@ can help with that document.
 |-----------|----------------------------------------------------------------------|
 | Backend   | ASP.NET Core 9 Web API · Clean Architecture · CQRS (MediatR) · Repository pattern · Dapper |
 | Database  | PostgreSQL (via Npgsql); Railway-managed in production, Docker locally |
-| Auth      | JWT access + refresh tokens, PBKDF2 password hashing; admins by `Admin:Emails` allowlist; forgot/reset-password flow emails a single-use, 1-hour link (`/forgot-password` → `/reset-password`) via the same `IEmailSender` built for invoicing; registration requires email verification before login — a new account starts unverified, gets emailed a single-use, 1-hour link (`/verify-email`), and only receives JWTs once that link is clicked (`/check-email` interstitial + a resend-verification option, both server- and login-page-side); account lockout after repeated failed logins (`Auth:MaxFailedLoginAttempts`/`Auth:LockoutMinutes`, on top of the per-IP rate limiter); "remember me" on login chooses `localStorage` (persists across browser restarts) vs. `sessionStorage` (cleared when the tab closes) for the token pair |
+| Auth      | JWT access + refresh tokens, PBKDF2 password hashing; admins by `Admin:Emails` allowlist; forgot/reset-password flow emails a single-use, 1-hour link (`/forgot-password` → `/reset-password`) via the same `IEmailSender` built for invoicing; registration requires email verification before login — a new account starts unverified, gets emailed a single-use, 1-hour link (`/verify-email`), and only receives JWTs once that link is clicked (`/check-email` interstitial + a resend-verification option, both server- and login-page-side); re-registering an email whose only prior signup was never verified overwrites that abandoned row instead of blocking the address forever, so a typo or a lost verification email is recoverable; account lockout after repeated failed logins (`Auth:MaxFailedLoginAttempts`/`Auth:LockoutMinutes`, on top of the per-IP rate limiter); "remember me" on login chooses `localStorage` (persists across browser restarts) vs. `sessionStorage` (cleared when the tab closes) for the token pair |
 | Referrals | Vetted providers matched per document category · per-lead tracking with lifecycle status (New/Contacted/Responded/Converted/Invalid) for billing integrity · anonymous post-contact "was this helpful?" feedback → per-provider satisfaction rate · anonymous partner self-registration · admin approve/manage console |
 | Invoicing | Admin-initiated, persisted PDF invoices (QuestPDF), branded with the Fana logo/colors, per provider + calendar month, snapshotting billable (Converted) leads so a later status change never rewrites history · emailed via SMTP (MailKit) · one invoice per provider/month (unique index) · generation always persists even if the email send fails (`Status=Failed` + `SendError`, PDF still downloadable) · a billing statement, not a payment-collection/tax document — no tax ID or bank details, since payment is handled directly, out-of-band |
 | Organizations | B2B/B2G tenants (`Organizations`) — a user optionally tags itself to a tenant by slug at registration; admin-only tenant create/edit/activate-deactivate and an aggregate, anonymized usage dashboard (documents processed, unique members, category/urgency/weekly breakdowns) per tenant. Slug is locked after creation |
@@ -59,7 +79,7 @@ can help with that document.
 | OCR       | `IOcrProvider` → `ClaudeOcrProvider` (default, on a separate cheaper `Ai:AnthropicOcrModel` tier) / Google Vision / Azure · runs off the request thread — see Document processing below |
 | Document processing | Upload persists every page and returns `202 Accepted` immediately; OCR then runs page-by-page in `DocumentProcessor`, driven by an in-memory queue + `DocumentProcessingWorker` background service (with startup reconciliation for anything left mid-job by a crash/redeploy). The client polls `GET /documents/{id}` (`Status`/`ProcessedPages`/`TotalPages`) instead of holding one long-lived request open |
 | Analytics | Minimal funnel instrumentation (`AnalyticsEvents`) — registered/verified/uploaded/analyzed counts, viewable via `GET /api/admin/analytics/funnel` (admin only) and on the `/admin/analytics` dashboard page (period selector: 7/30/90 days); each stage is clickable and drills into the individual events (`GET /api/admin/analytics/funnel/{eventName}`) — who (email, or "deleted account" if the user's since been removed) and when. Tracking failures never fail the request they're attached to |
-| TTS       | `ITtsProvider` → `AzureTtsProvider` (default) / ElevenLabs · audio cached per (document, language) |
+| TTS       | `ITtsProvider` → `AzureTtsProvider` (default) / ElevenLabs · full-walkthrough or single-section (`SpokenSection`: Summary/Explanation/KeyPoints/Actions/Deadlines) audio, cached per (document, language, section) |
 | Frontend  | Next.js 15 · TypeScript · Tailwind CSS · shadcn-style UI             |
 | Languages | Hebrew (default until chosen, RTL) · Amharic · English · a blocking first-run `LanguageGate` asks explicitly rather than guessing from `navigator.language` |
 | Hosting   | Netlify (frontend) · Railway (API + PostgreSQL, + a Volume for uploaded files — see `DEPLOY.md`) |
@@ -89,7 +109,7 @@ Fana 2.0/
 │  └─ tests/AmharicHelper.UnitTests/
 └─ frontend/
    ├─ app/                      # landing, login, register, check-email, verify-email,
-   │                           #   forgot-password, reset-password,
+   │                           #   forgot-password, reset-password, help (FAQ + replay onboarding),
    │                           #   dashboard, upload, documents/[id], documents/[id]/chat, profile,
    │                           #   partners (self-registration), admin/providers,
    │                           #   admin/organizations (B2G tenant console),
@@ -97,8 +117,10 @@ Fana 2.0/
    ├─ components/               # Navbar, UploadExperience, CameraCapture, AnalysisCard,
    │                           #   DocumentPages (page thumbnails + zoom lightbox),
    │                           #   ReferralBlock, LeadFeedbackPrompt, ShareButton, Onboarding,
+   │                           #   SectionAudioButton (per-card "read just this" playback),
    │                           #   LanguageGate, AccessibilityWidget, ServiceWorker, ui/
-   ├─ lib/                      # api client, auth + language + organization contexts, types,
+   ├─ lib/                      # api client, auth + language + organization + onboarding contexts,
+   │                           #   types, support (support-contact constant),
    │                           #   imageQuality (client-side blur/exposure check)
    ├─ i18n/                     # he / am / en dictionaries
    └─ jest.config.js, jest.setup.ts  # Jest + React Testing Library; *.test.ts(x) live in
@@ -113,13 +135,14 @@ commands/queries.
 `Users` (with an optional `OrganizationId`), `RefreshTokens`, `Documents` (with
 `Status`/`ProcessedPages`/`TotalPages`/`SkippedPages`/`ProcessingError` for the
 background OCR pipeline, plus `PageContentTypes` alongside `PagePaths`),
-`DocumentAnalyses`, `ChatMessages`, `TtsAudioCache`, `Providers`, `Leads` (with
-`Status` and `Helpful` columns for lead lifecycle + post-contact feedback),
-`Organizations` (B2B/B2G tenant branding), `Invoices` (persisted, immutable
-per-provider/month billing snapshots, unique on `(ProviderId, PeriodYear,
-PeriodMonth)`), `AnalyticsEvents` (minimal funnel instrumentation — event name +
-optional user + timestamp) (see
-`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`018`).
+`DocumentAnalyses`, `ChatMessages`, `TtsAudioCache` (keyed per document,
+language, and `Section` — the whole walkthrough or one passage), `Providers`,
+`Leads` (with `Status` and `Helpful` columns for lead lifecycle + post-contact
+feedback), `Organizations` (B2B/B2G tenant branding), `Invoices` (persisted,
+immutable per-provider/month billing snapshots, unique on `(ProviderId,
+PeriodYear, PeriodMonth)`), `AnalyticsEvents` (minimal funnel instrumentation —
+event name + optional user + timestamp) (see
+`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`020`).
 Migrations are idempotent PostgreSQL and run on API startup. Analysis text
 columns store JSON localized to `{ he, am, en }`.
 
@@ -129,9 +152,9 @@ columns store JSON localized to `{ he, am, en }`.
 - `POST /api/documents` (upload — returns `202 Accepted` immediately; OCR runs in the background, see Document processing above), `GET /api/documents` (list, with each document's processing `Status`), `GET /api/documents/{id}` (poll for `Status`/`ProcessedPages`/`TotalPages`/`SkippedPages`/`ProcessingError` and, once ready, the analysis)
 - `POST /api/documents/{id}/analyze?category=`
 - `GET  /api/documents/{id}/pages/{index}` (raw file for one uploaded page — image or PDF — so the user can review what they photographed; client-cached, immutable once uploaded)
-- `GET  /api/documents/{id}/speech?language=` (spoken explanation, MP3)
+- `GET  /api/documents/{id}/speech?language=&section=` (spoken audio, MP3 — `section` defaults to the full walkthrough; pass `Summary`/`Explanation`/`KeyPoints`/`Actions`/`Deadlines` for one card's passage)
 - `GET|POST /api/documents/{id}/chat`
-- `POST /api/trial/analyze`, `POST /api/trial/speech` (anonymous trial, nothing saved — still synchronous, capped at 5 pages)
+- `POST /api/trial/analyze`, `POST /api/trial/speech` (anonymous trial, nothing saved — still synchronous, capped at 5 pages; `speech` accepts the same optional `section`)
 - `GET  /api/referrals?category=` (matched providers), `POST /api/referrals/{providerId}/lead` (log a contact) — anonymous, rate-limited
 - `POST /api/referrals/feedback/{refCode}` (post-contact "did this help?" signal) — anonymous, rate-limited
 - `POST /api/partners/apply` (business self-registration, anonymous, rate-limited)
@@ -208,6 +231,10 @@ variables (double-underscore syntax, e.g. `Ai__Provider`):
 | `Email__Provider` | `SendGridApi` (default, HTTPS — works on hosts like Railway that block outbound SMTP ports) or `Smtp` (MailKit, for hosts that don't) | `SendGridApi` |
 | `Email__Smtp__Password` / `From` | SendGrid API key / verified sender, used to email generated invoice PDFs and password-reset links; via `SENDGRID_API_KEY` / `SENDGRID_FROM_EMAIL` in Docker. `Host`/`Port`/`Username` only matter for the `Smtp` provider | empty |
 | `Company__SupportEmail`   | "Questions about this invoice?" contact shown on invoice PDFs; falls back to the first `Admin:Emails` entry if unset | empty |
+
+> **Frontend support contact:** `frontend/lib/support.ts` exports `SUPPORT_EMAIL`,
+> shown as a mailto link on the `/help` page. It's a placeholder — replace it
+> with the real support address before shipping the Help page to production.
 
 ## Deployment
 

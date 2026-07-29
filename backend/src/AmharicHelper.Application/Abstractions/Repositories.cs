@@ -55,13 +55,13 @@ public interface IDocumentAnalysisRepository
 }
 
 /// <summary>
-/// Caches synthesized TTS audio per (document, language) so repeated listens don't
+/// Caches synthesized TTS audio per (document, language, section) so repeated listens don't
 /// re-bill the speech provider. Invalidated when the document is re-analyzed or deleted.
 /// </summary>
 public interface ITtsAudioCacheRepository
 {
-    Task<TtsAudio?> GetAsync(Guid documentId, Language language, CancellationToken ct = default);
-    Task SetAsync(Guid documentId, Language language, TtsAudio audio, CancellationToken ct = default);
+    Task<TtsAudio?> GetAsync(Guid documentId, Language language, SpokenSection section, CancellationToken ct = default);
+    Task SetAsync(Guid documentId, Language language, SpokenSection section, TtsAudio audio, CancellationToken ct = default);
     Task DeleteByDocumentIdAsync(Guid documentId, CancellationToken ct = default);
 }
 

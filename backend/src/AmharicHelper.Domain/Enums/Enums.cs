@@ -29,6 +29,20 @@ public enum Language
     English = 2
 }
 
+/// <summary>Which passage of a spoken analysis to synthesize. Full is the whole walkthrough
+/// (the historical, only behavior) — a specific section lets the frontend offer per-card
+/// "read just the actions" playback instead of all-or-nothing audio. Full = 0 keeps every
+/// TtsAudioCache row written before per-section audio existed valid without a backfill.</summary>
+public enum SpokenSection
+{
+    Full = 0,
+    Summary = 1,
+    Explanation = 2,
+    KeyPoints = 3,
+    Actions = 4,
+    Deadlines = 5
+}
+
 /// <summary>Author of a chat message.</summary>
 public enum ChatRole
 {

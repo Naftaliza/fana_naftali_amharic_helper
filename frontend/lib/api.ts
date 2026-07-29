@@ -174,11 +174,11 @@ export const api = {
     files.forEach((f) => form.append("files", f));
     return request<AnalysisResult>("/api/trial/analyze", { method: "POST", body: form });
   },
-  trialSpeech: async (analysis: AnalysisResult, language: number): Promise<Blob> => {
+  trialSpeech: async (analysis: AnalysisResult, language: number, section?: number): Promise<Blob> => {
     const res = await fetch(`${BASE}/api/trial/speech`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ analysis, language }),
+      body: JSON.stringify({ analysis, language, section }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
@@ -188,8 +188,8 @@ export const api = {
   },
 
   // --- Text to speech (returns an MP3 blob) ---
-  speech: async (id: string, language: number): Promise<Blob> => {
-    const url = `${BASE}/api/documents/${id}/speech?language=${language}`;
+  speech: async (id: string, language: number, section?: number): Promise<Blob> => {
+    const url = `${BASE}/api/documents/${id}/speech?language=${language}${section ? `&section=${section}` : ""}`;
     const send = () => {
       const headers = new Headers();
       const token = tokenStore.access;
