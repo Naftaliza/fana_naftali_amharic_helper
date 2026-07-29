@@ -35,7 +35,8 @@ public class RegisterHandler(
     public async Task<Result<RegisterResponse>> Handle(RegisterCommand cmd, CancellationToken ct)
     {
         var req = cmd.Request;
-        if (await users.GetByEmailAsync(req.Email, ct) is not null)
+        var normalizedEmail = EmailNormalizer.Normalize(req.Email);
+        if (await users.GetByEmailAsync(normalizedEmail, ct) is not null)
             return Result<RegisterResponse>.Fail("Email already registered.");
 
         // Registering through a tenant-branded front end tags the new user as that org's
@@ -52,7 +53,7 @@ public class RegisterHandler(
         var rawToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         var user = new User
         {
-            Email = req.Email,
+            Email = normalizedEmail,
             DisplayName = req.DisplayName,
             PreferredLanguage = req.PreferredLanguage,
             PasswordHash = hasher.Hash(req.Password),
@@ -106,7 +107,7 @@ public class LoginHandler(
         var maxAttempts = int.TryParse(config["Auth:MaxFailedLoginAttempts"], out var m) ? m : 5;
         var lockoutMinutes = int.TryParse(config["Auth:LockoutMinutes"], out var l) ? l : 15;
 
-        var user = await users.GetByEmailAsync(cmd.Request.Email, ct);
+        var user = await users.GetByEmailAsync(EmailNormalizer.Normalize(cmd.Request.Email), ct);
         if (user is null) return Result<AuthResponse>.Fail(InvalidCredentials);
 
         // Checked before verifying the password: a still-correct password must not lift an
@@ -177,7 +178,7 @@ public class ForgotPasswordHandler(
 {
     public async Task<Result<bool>> Handle(ForgotPasswordCommand cmd, CancellationToken ct)
     {
-        var user = await users.GetByEmailAsync(cmd.Request.Email, ct);
+        var user = await users.GetByEmailAsync(EmailNormalizer.Normalize(cmd.Request.Email), ct);
         if (user is not null)
         {
             // Single-use, time-limited token. Only its hash is stored, so a DB leak
@@ -224,7 +225,7 @@ public class ResetPasswordHandler(IUserRepository users, IPasswordHasher hasher)
         if (string.IsNullOrWhiteSpace(req.NewPassword) || req.NewPassword.Length < 8)
             return Result<bool>.Fail("Password must be at least 8 characters.");
 
-        var user = await users.GetByEmailAsync(req.Email, ct);
+        var user = await users.GetByEmailAsync(EmailNormalizer.Normalize(req.Email), ct);
 
         // Reject if there is no pending reset, it has expired, or the token doesn't match.
         // One generic error so callers can't probe which condition failed.
@@ -259,7 +260,7 @@ public class VerifyEmailHandler(
     public async Task<Result<AuthResponse>> Handle(VerifyEmailCommand cmd, CancellationToken ct)
     {
         var req = cmd.Request;
-        var user = await users.GetByEmailAsync(req.Email, ct);
+        var user = await users.GetByEmailAsync(EmailNormalizer.Normalize(req.Email), ct);
 
         // Same generic-failure shape as ResetPasswordHandler. A second click on an already-used
         // link also lands here, since the token is nulled out on first success below.
@@ -296,7 +297,7 @@ public class ResendVerificationHandler(
 {
     public async Task<Result<bool>> Handle(ResendVerificationCommand cmd, CancellationToken ct)
     {
-        var user = await users.GetByEmailAsync(cmd.Request.Email, ct);
+        var user = await users.GetByEmailAsync(EmailNormalizer.Normalize(cmd.Request.Email), ct);
 
         // Anti-enumeration, same as ForgotPasswordHandler — also silently no-ops for an
         // already-verified account rather than confirming it exists.
