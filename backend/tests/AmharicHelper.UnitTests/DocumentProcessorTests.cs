@@ -13,7 +13,8 @@ public class DocumentProcessorTests
     /// <summary>OCR fake keyed by the page's content type tag (we encode behavior in the bytes).</summary>
     private sealed class FakeOcr : IOcrProvider
     {
-        // Map: page marker byte -> result. 1=text, 0=blank(empty), 2=throw transient, 3=throw config.
+        // Map: page marker byte -> result. 1=text, 0=blank(empty), 2=throw transient,
+        // 3=throw config, 4=throw account-level service error (quota/rate-limit/outage).
         public List<byte[]> Seen { get; } = new();
 
         public Task<string> ExtractTextAsync(byte[] fileBytes, string contentType, CancellationToken ct = default)
@@ -25,6 +26,7 @@ public class DocumentProcessorTests
                 0 => Task.FromResult(""),                                   // blank page
                 2 => throw new InvalidOperationException("OCR failed: 500 InternalServerError"),
                 3 => throw new InvalidOperationException("Anthropic API key is not configured (Ai:AnthropicApiKey)."),
+                4 => throw new InvalidOperationException("OCR service is temporarily unavailable (429)."),
                 _ => Task.FromResult("?"),
             };
         }
@@ -164,6 +166,21 @@ public class DocumentProcessorTests
         Assert.Equal(DocumentProcessingStatus.Failed, docs.Stored!.Status);
         Assert.Contains("API key", docs.Stored.ProcessingError);
         Assert.Single(ocr.Seen);   // the second page is never attempted once a config error hits
+    }
+
+    [Fact]
+    public async Task Account_level_service_error_fails_the_document_with_an_accurate_message_and_stops_processing_further_pages()
+    {
+        var (docs, storage, doc) = SetUp(4, 1);
+        var ocr = new FakeOcr();
+        var processor = new DocumentProcessor(docs, storage, ocr);
+
+        await processor.ProcessAsync(doc.Id, default);
+
+        Assert.Equal(DocumentProcessingStatus.Failed, docs.Stored!.Status);
+        Assert.Contains("temporarily unavailable", docs.Stored.ProcessingError);
+        Assert.DoesNotContain("No readable text", docs.Stored.ProcessingError);
+        Assert.Single(ocr.Seen);   // the second page is never attempted once a service error hits
     }
 
     [Fact]

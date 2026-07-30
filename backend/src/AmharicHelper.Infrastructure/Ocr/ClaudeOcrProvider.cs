@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AmharicHelper.Application.Abstractions;
@@ -65,6 +66,8 @@ public class ClaudeOcrProvider(
         {
             var err = await resp.Content.ReadAsStringAsync(ct);
             logger.LogError("Claude OCR failed ({Status}): {Body}", resp.StatusCode, err);
+            if (IsAccountLevelError(resp.StatusCode, err))
+                throw new InvalidOperationException($"OCR service is temporarily unavailable ({(int)resp.StatusCode}).");
             throw new InvalidOperationException($"OCR failed: {(int)resp.StatusCode} {resp.StatusCode}");
         }
 
@@ -82,4 +85,15 @@ public class ClaudeOcrProvider(
         "image/webp" => "image/webp",
         _ => "image/jpeg"
     };
+
+    // Distinguishes "the account/service can't OCR anything right now" (quota exhausted, rate
+    // limited, unauthorized, or the API itself is down) from "this specific request was rejected"
+    // (e.g. a malformed image). The former would fail identically for every page and every future
+    // document, so callers treat it as a hard failure instead of skipping just this page.
+    private static bool IsAccountLevelError(HttpStatusCode status, string body) =>
+        status is HttpStatusCode.TooManyRequests or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+        || (int)status >= 500
+        || body.Contains("usage limit", StringComparison.OrdinalIgnoreCase)
+        || body.Contains("rate_limit_error", StringComparison.OrdinalIgnoreCase)
+        || body.Contains("overloaded_error", StringComparison.OrdinalIgnoreCase);
 }

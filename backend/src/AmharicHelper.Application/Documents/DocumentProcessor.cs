@@ -14,8 +14,10 @@ namespace AmharicHelper.Application.Documents;
 ///   a blank/unreadable page (it does not throw), so empty == skipped.
 /// - A page-level OCR exception (e.g. a transient failure that survived retries) skips that page
 ///   but the document continues.
-/// - A configuration/auth error (missing API key) would fail every remaining page identically, so
-///   it aborts the whole document as Failed rather than silently producing a partial result.
+/// - A configuration/auth error (missing API key) or an account-level OCR failure (quota exceeded,
+///   rate limited, service outage) would fail every remaining page identically, so it aborts the
+///   whole document as Failed with an accurate message rather than silently skipping every page
+///   and reporting the misleading "no readable text was found".
 /// - If no page yields text, the document is marked Failed.
 /// </summary>
 public class DocumentProcessor(IDocumentRepository documents, IFileStorage storage, IOcrProvider ocr)
@@ -44,7 +46,7 @@ public class DocumentProcessor(IDocumentRepository documents, IFileStorage stora
                 var contentType = i < doc.PageContentTypes.Length ? doc.PageContentTypes[i] : doc.ContentType;
                 text = await ocr.ExtractTextAsync(bytes, contentType, ct);
             }
-            catch (InvalidOperationException ex) when (IsConfigurationError(ex))
+            catch (InvalidOperationException ex) when (IsFatalError(ex))
             {
                 doc.Status = DocumentProcessingStatus.Failed;
                 doc.ProcessingError = ex.Message;
@@ -83,6 +85,11 @@ public class DocumentProcessor(IDocumentRepository documents, IFileStorage stora
         await documents.UpdateAsync(doc, ct);
     }
 
-    private static bool IsConfigurationError(InvalidOperationException ex) =>
-        ex.Message.Contains("API key", StringComparison.OrdinalIgnoreCase);
+    // Both a missing API key and an account-level OCR failure (quota/rate-limit/service outage,
+    // see ClaudeOcrProvider.IsAccountLevelError) would fail every remaining page identically, so
+    // either aborts the whole document with an accurate message instead of limping through every
+    // page only to report the misleading "no readable text" once they've all been skipped.
+    private static bool IsFatalError(InvalidOperationException ex) =>
+        ex.Message.Contains("API key", StringComparison.OrdinalIgnoreCase)
+        || ex.Message.Contains("temporarily unavailable", StringComparison.OrdinalIgnoreCase);
 }

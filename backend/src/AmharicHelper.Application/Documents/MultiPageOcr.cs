@@ -12,8 +12,9 @@ namespace AmharicHelper.Application.Documents;
 ///   blank/unreadable page (it does not throw), so empty == skipped.
 /// - A page-level OCR exception (e.g. a transient API failure that survived retries) skips that page
 ///   but the batch continues.
-/// - A configuration/auth error (missing API key) would fail every page identically, so it is
-///   rethrown to fail the whole upload rather than silently producing an empty document.
+/// - A configuration/auth error (missing API key) or an account-level OCR failure (quota exceeded,
+///   rate limited, service outage) would fail every page identically, so it is rethrown to fail
+///   the whole upload with an accurate message rather than silently producing an empty document.
 /// - If no page yields text, the caller treats it as a failure (nothing is saved).
 /// </summary>
 public static class MultiPageOcr
@@ -37,7 +38,7 @@ public static class MultiPageOcr
             {
                 text = await ocr.ExtractTextAsync(pages[i].Content, pages[i].ContentType, ct);
             }
-            catch (InvalidOperationException ex) when (IsConfigurationError(ex))
+            catch (InvalidOperationException ex) when (IsFatalError(ex))
             {
                 throw; // doomed for every page — fail the whole batch
             }
@@ -64,6 +65,9 @@ public static class MultiPageOcr
         return new Result(keptIndices, combined, pages.Count - keptIndices.Count);
     }
 
-    private static bool IsConfigurationError(InvalidOperationException ex) =>
-        ex.Message.Contains("API key", StringComparison.OrdinalIgnoreCase);
+    // See DocumentProcessor.IsFatalError — same reasoning, duplicated because this file has no
+    // dependency on that one.
+    private static bool IsFatalError(InvalidOperationException ex) =>
+        ex.Message.Contains("API key", StringComparison.OrdinalIgnoreCase)
+        || ex.Message.Contains("temporarily unavailable", StringComparison.OrdinalIgnoreCase);
 }
