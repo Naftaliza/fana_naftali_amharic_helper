@@ -10,7 +10,8 @@ import { DOCUMENT_STATUS, type DocumentDetail } from "@/lib/types";
 import { AnalysisCard } from "@/components/AnalysisCard";
 import { AnalyzingState } from "@/components/AnalyzingState";
 import { DocumentPages } from "@/components/DocumentPages";
-import { ShareButton } from "@/components/ShareButton";
+import { DocumentShareButton } from "@/components/DocumentShareButton";
+import { OcrFailedCard } from "@/components/OcrFailedCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -29,6 +30,8 @@ export default function DocumentDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const [retryingOcr, setRetryingOcr] = useState(false);
   const startedRef = useRef(false); // guard so auto-analyze runs only once
 
   // Cancel while still waiting (upload/OCR/analysis) — processing is already running
@@ -43,6 +46,20 @@ export default function DocumentDetailPage() {
       router.push("/dashboard");
     } catch {
       setCancelling(false);
+    }
+  };
+
+  const retryOcr = async () => {
+    setRetryingOcr(true);
+    try {
+      await api.retryOcr(id);
+      startedRef.current = false;
+      setDoc(null); // show the loading state while polling restarts
+      setRetryKey((k) => k + 1);
+    } catch (err) {
+      setError((err as Error).message || t("doc.ocrRetryError"));
+    } finally {
+      setRetryingOcr(false);
     }
   };
 
@@ -89,7 +106,7 @@ export default function DocumentDetailPage() {
       if (timer) clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, retryKey]);
 
   if (!doc) return <p className="text-gray-500 dark:text-gray-400">{t("common.loading")}</p>;
 
@@ -114,7 +131,7 @@ export default function DocumentDetailPage() {
             <Link href={`/documents/${id}/chat`}>
               <Button variant="outline"><MessageCircle className="h-5 w-5" />{t("doc.chat")}</Button>
             </Link>
-            <ShareButton />
+            <DocumentShareButton analysis={doc.analysis} />
           </div>
         ) : (
           // Still waiting (upload/OCR/analysis) or it failed with nothing to show yet —
@@ -141,11 +158,12 @@ export default function DocumentDetailPage() {
       {ocrInProgress && <AnalyzingState mode="ocr" processedPages={doc.processedPages} totalPages={doc.totalPages} />}
 
       {ocrFailed && (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <p role="alert" className="text-red-600">{doc.processingError || t("doc.ocrFailed")}</p>
-          </CardContent>
-        </Card>
+        <OcrFailedCard
+          documentId={id}
+          rawError={doc.processingError}
+          onRetryOcr={retryOcr}
+          retrying={retryingOcr}
+        />
       )}
 
       {/* While analyzing, show a friendly multi-step waiting state. */}

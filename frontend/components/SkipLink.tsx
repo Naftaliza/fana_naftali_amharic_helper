@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/language-context";
 export function SkipLink() {
   const { t } = useLanguage();
   return (
-    <a href="#main" className="skip-link">
+    <a href="#main" data-print-hide className="skip-link">
       {t("a11y.skip")}
     </a>
   );

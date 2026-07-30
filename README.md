@@ -61,7 +61,23 @@ can help with that document.
 > to `/register` for a wrong-address correction. The sponsored-referral list
 > hides a provider whose blurb was never filled in for the viewer's chosen
 > language, rather than silently falling back to another language's text (which
-> previously could show Hebrew copy to an Amharic-language user).
+> previously could show Hebrew copy to an Amharic-language user). A required
+> action's mandatory status is now also shown as a text "Required" chip, not
+> just an icon/color, so it survives grayscale accessibility mode. Documents
+> carry their own translated Send (WhatsApp/native share) and Print actions,
+> separate from the app-level growth-loop share button, and each dated
+> deadline gets a per-action checkbox (persisted locally) plus an
+> "Add to calendar" `.ics` download; the dashboard leads with a "Coming up"
+> strip of the nearest upcoming deadlines across all documents. A failed OCR
+> now offers retry-in-place, retake-photo, or choose-a-different-file instead
+> of a dead end — and the shown message distinguishes a genuinely unreadable
+> page from a transient OCR-service outage (quota/rate-limit/auth), which
+> otherwise looked identical to the user. Signing up right after a trial
+> analysis no longer discards it: the analysis is stashed client-side and,
+> once the new account is verified, a prompt offers to attach it to the
+> account. A global offline banner, disabled upload/capture, and a
+> distinguished dashboard empty-vs-offline state cover the no-connectivity
+> case everywhere.
 
 ![Sample generated invoice PDF, branded with the Fana logo and colors](docs/invoice-sample.png)
 
@@ -149,8 +165,10 @@ columns store JSON localized to `{ he, am, en }`.
 ### API endpoints
 - `POST /api/auth/register | login | refresh | forgot-password | reset-password | verify-email | resend-verification`
 - `GET  /api/users/me`, `GET /api/users/me/export` (GDPR Art. 15 data export — profile + every document/analysis/chat as JSON), `DELETE /api/users/me` (GDPR Art. 17 account erasure — irreversible)
-- `POST /api/documents` (upload — returns `202 Accepted` immediately; OCR runs in the background, see Document processing above), `GET /api/documents` (list, with each document's processing `Status`), `GET /api/documents/{id}` (poll for `Status`/`ProcessedPages`/`TotalPages`/`SkippedPages`/`ProcessingError` and, once ready, the analysis)
+- `POST /api/documents` (upload — returns `202 Accepted` immediately; OCR runs in the background, see Document processing above), `GET /api/documents` (list, with each document's processing `Status` and upcoming `Deadlines`), `GET /api/documents/{id}` (poll for `Status`/`ProcessedPages`/`TotalPages`/`SkippedPages`/`ProcessingError` and, once ready, the analysis)
 - `POST /api/documents/{id}/analyze?category=`
+- `POST /api/documents/{id}/retry-ocr` (re-queue a `Failed` document for another OCR pass)
+- `POST /api/documents/attach-trial` (persist an anonymous trial analysis to the now-signed-in account)
 - `GET  /api/documents/{id}/pages/{index}` (raw file for one uploaded page — image or PDF — so the user can review what they photographed; client-cached, immutable once uploaded)
 - `GET  /api/documents/{id}/speech?language=&section=` (spoken audio, MP3 — `section` defaults to the full walkthrough; pass `Summary`/`Explanation`/`KeyPoints`/`Actions`/`Deadlines` for one card's passage)
 - `GET|POST /api/documents/{id}/chat`

@@ -72,7 +72,7 @@ export function AccessibilityWidget() {
   ];
 
   return (
-    <div ref={ref} className="pb-safe fixed bottom-4 end-4 z-50 flex flex-col items-end gap-3">
+    <div ref={ref} data-print-hide className="pb-safe fixed bottom-4 end-4 z-50 flex flex-col items-end gap-3">
       {open && (
         <div
           role="dialog"

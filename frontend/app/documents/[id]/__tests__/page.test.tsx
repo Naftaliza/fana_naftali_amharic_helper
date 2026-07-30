@@ -4,7 +4,7 @@ import { LanguageProvider } from "@/lib/language-context";
 import { api } from "@/lib/api";
 
 jest.mock("@/lib/api", () => ({
-  api: { getDocument: jest.fn(), deleteDocument: jest.fn(), analyze: jest.fn() },
+  api: { getDocument: jest.fn(), deleteDocument: jest.fn(), analyze: jest.fn(), retryOcr: jest.fn() },
 }));
 jest.mock("next/navigation", () => ({
   useParams: () => ({ id: "d1" }),
@@ -46,5 +46,58 @@ describe("DocumentDetailPage cancel flow", () => {
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete document" }));
 
     await waitFor(() => expect(api.deleteDocument).toHaveBeenCalledWith("d1"));
+  });
+});
+
+describe("DocumentDetailPage document actions", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (api.getDocument as jest.Mock).mockResolvedValue({
+      ...PENDING_DOC,
+      status: 2,
+      analysis: {
+        summary: { he: "s", am: "s", en: "s" }, documentType: { he: "t", am: "t", en: "t" },
+        urgencyLevel: "Low", keyPoints: [], requiredActions: [], deadlines: [],
+        explanation: { he: "e", am: "e", en: "e" },
+      },
+    });
+  });
+
+  it("shows Send/Print document actions instead of the generic ShareButton once analyzed", async () => {
+    renderPage();
+    await waitFor(() => screen.getByText("Send"));
+    expect(screen.getByText("Print")).toBeInTheDocument();
+    expect(screen.queryByText("Tell a friend about Fana")).not.toBeInTheDocument();
+  });
+});
+
+describe("DocumentDetailPage OCR failure recovery", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("shows OcrFailedCard with a plain-language cause when OCR failed", async () => {
+    (api.getDocument as jest.Mock).mockResolvedValue({
+      ...PENDING_DOC, status: 3, processingError: "No readable text was found in the document.",
+    });
+    renderPage();
+    await waitFor(() => screen.getByRole("alert"));
+    expect(screen.getByRole("alert")).toHaveTextContent(/couldn't find any readable text/i);
+    expect(screen.getByText("Retake photo")).toBeInTheDocument();
+  });
+
+  it("re-runs OCR and resumes polling when 'Try again' is clicked", async () => {
+    (api.getDocument as jest.Mock)
+      .mockResolvedValueOnce({ ...PENDING_DOC, status: 3, processingError: "No readable text was found in the document." })
+      .mockResolvedValueOnce({ ...PENDING_DOC, status: 0 })
+      .mockResolvedValueOnce({ ...PENDING_DOC, status: 2, analysis: null });
+    (api.retryOcr as jest.Mock).mockResolvedValue({ ok: true });
+    renderPage();
+    await waitFor(() => screen.getByText("Try again"));
+
+    fireEvent.click(screen.getByText("Try again"));
+
+    await waitFor(() => expect(api.retryOcr).toHaveBeenCalledWith("d1"));
+    await waitFor(() => expect(api.getDocument).toHaveBeenCalledTimes(2), { timeout: 3000 });
   });
 });

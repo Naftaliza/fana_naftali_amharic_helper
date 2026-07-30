@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckSquare, Calendar, ListChecks, Volume2, Loader2, Play, Pause, RotateCcw } from "lucide-react";
+import { AlertTriangle, CalendarPlus, CheckSquare, Calendar, ListChecks, Volume2, Loader2, Play, Pause, RotateCcw } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/api";
 import { LANGUAGE_ENUM, URGENCY_ENUM, isRtl, loc, type AnalysisResult } from "@/lib/types";
@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ReferralBlock } from "@/components/ReferralBlock";
 import { SectionAudioButton } from "@/components/SectionAudioButton";
+import { isActionChecked, setActionChecked } from "@/lib/actionProgress";
+import { buildDeadlineIcs } from "@/lib/ics";
 
 // Index = the backend's UrgencyLevel int (Low=0 .. Critical=3). The API serializes enums as ints
 // on the wire, but AnalysisResult's type says string — tolerate both (see the same normalization,
@@ -42,6 +44,9 @@ export function AnalysisCard({
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // isActionChecked reads localStorage directly (not React state) so it survives remounts across
+  // page navigations; toggling calls setActionChecked then forces a re-render to reflect it.
+  const [, forceRerender] = useState(0);
 
   // Stop and release any audio when the component unmounts.
   useEffect(() => {
@@ -123,7 +128,7 @@ export function AnalysisCard({
   return (
     <div className="grid animate-fade-in-up gap-4">
       {/* Sticky so the audio control stays reachable while scrolling the result. */}
-      <div className="sticky top-20 z-30 flex flex-col gap-1">
+      <div data-print-hide className="sticky top-20 z-30 flex flex-col gap-1">
         {!ready ? (
           <Button onClick={start} disabled={loading} className="self-start shadow-soft">
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
@@ -212,12 +217,34 @@ export function AnalysisCard({
           </CardHeader>
           <CardContent>
             <ul className="space-y-2 text-gray-700 dark:text-gray-300" dir={dir}>
-              {analysis.requiredActions.map((a, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  {a.isMandatory && <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-orange-500" />}
-                  <span>{loc(a.description, language)}</span>
-                </li>
-              ))}
+              {analysis.requiredActions.map((a, i) => {
+                const checked = documentId ? isActionChecked(documentId, i) : false;
+                return (
+                  <li key={i} className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={!documentId}
+                      onChange={(e) => {
+                        if (!documentId) return;
+                        setActionChecked(documentId, i, e.target.checked);
+                        forceRerender((n) => n + 1);
+                      }}
+                      aria-label={loc(a.description, language)}
+                      className="mt-1 h-4 w-4 shrink-0 accent-brand"
+                    />
+                    {a.isMandatory && (
+                      <>
+                        <AlertTriangle aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-orange-500" />
+                        <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900/40 dark:text-orange-300">
+                          {t("doc.required")}
+                        </span>
+                      </>
+                    )}
+                    <span className={checked ? "line-through opacity-60" : undefined}>{loc(a.description, language)}</span>
+                  </li>
+                );
+              })}
             </ul>
           </CardContent>
         </Card>
@@ -232,10 +259,21 @@ export function AnalysisCard({
           {analysis.deadlines.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400">—</p>
           ) : (
-            <ul className="space-y-1 text-gray-700 dark:text-gray-300" dir={dir}>
+            <ul className="space-y-2 text-gray-700 dark:text-gray-300" dir={dir}>
               {analysis.deadlines.map((d, i) => (
-                <li key={i}>
-                  {d.date ? <strong>{new Date(d.date).toLocaleDateString()}</strong> : null} {loc(d.description, language)}
+                <li key={i} className="flex flex-wrap items-center gap-2">
+                  <span>
+                    {d.date ? <strong>{new Date(d.date).toLocaleDateString()}</strong> : null} {loc(d.description, language)}
+                  </span>
+                  {d.date && (
+                    <a
+                      href={URL.createObjectURL(buildDeadlineIcs({ date: d.date, description: loc(d.description, language), documentName: t("app.name") }))}
+                      download={`deadline-${i}.ics`}
+                      className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
+                    >
+                      <CalendarPlus className="h-4 w-4" />{t("doc.addToCalendar")}
+                    </a>
+                  )}
                 </li>
               ))}
             </ul>

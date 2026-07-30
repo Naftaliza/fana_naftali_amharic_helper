@@ -41,6 +41,16 @@ public class DocumentsController(IMediator mediator) : ApiControllerBase(mediato
         return Ok(result.Value);
     }
 
+    /// <summary>Saves a previously-computed anonymous trial analysis to the now-authenticated
+    /// user's account. There is no OCR text or page file for a trial result — only the analysis
+    /// itself is persisted.</summary>
+    [HttpPost("attach-trial")]
+    public async Task<IActionResult> AttachTrial(DocumentAnalysisResult analysis)
+    {
+        var result = await Mediator.Send(new AttachTrialAnalysisCommand(CurrentUserId, analysis));
+        return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id)
     {
@@ -61,6 +71,15 @@ public class DocumentsController(IMediator mediator) : ApiControllerBase(mediato
     {
         var result = await Mediator.Send(new AnalyzeDocumentCommand(CurrentUserId, id, category));
         return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
+    }
+
+    /// <summary>Retry OCR on a document whose processing previously failed. Resets it to Pending
+    /// and re-queues it on the same background pipeline as a fresh upload.</summary>
+    [HttpPost("{id:guid}/retry-ocr")]
+    public async Task<IActionResult> RetryOcr(Guid id)
+    {
+        var result = await Mediator.Send(new RetryOcrCommand(CurrentUserId, id));
+        return result.Success ? Ok(new { ok = true }) : BadRequest(new { error = result.Error });
     }
 
     /// <summary>

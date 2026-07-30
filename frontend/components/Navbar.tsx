@@ -47,7 +47,7 @@ export function Navbar() {
     "flex w-full items-center gap-3 px-4 py-3 text-start text-base text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800";
 
   return (
-    <header className="pt-safe sticky top-0 z-40 border-b border-gray-100 bg-white/85 backdrop-blur dark:border-gray-800 dark:bg-gray-900/85">
+    <header data-print-hide className="pt-safe sticky top-0 z-40 border-b border-gray-100 bg-white/85 backdrop-blur dark:border-gray-800 dark:bg-gray-900/85">
       <nav aria-label={t("app.name")} className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 text-lg font-bold text-brand">
           {organization ? (

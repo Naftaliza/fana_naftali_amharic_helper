@@ -9,6 +9,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useOrganization } from "@/lib/organization-context";
 import { incrementTrial, trialRemaining, TRIAL_LIMIT } from "@/lib/trial";
+import { setPendingTrialAnalysis } from "@/lib/pendingTrialAnalysis";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { loc, type AnalysisResult } from "@/lib/types";
 import { AnalysisCard } from "@/components/AnalysisCard";
 import { AnalyzingState } from "@/components/AnalyzingState";
@@ -43,6 +45,7 @@ export function UploadExperience() {
   const [remaining, setRemaining] = useState(TRIAL_LIMIT);
   const [trialResult, setTrialResult] = useState<AnalysisResult | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const online = useOnlineStatus();
 
   useEffect(() => { setRemaining(trialRemaining()); }, []);
 
@@ -103,7 +106,11 @@ export function UploadExperience() {
           <CardContent className="flex flex-col items-center gap-3 py-6 text-center">
             {!user && <p className="text-lg font-medium">{t("trial.savePrompt").replace("{n}", String(remaining))}</p>}
             <div className="flex flex-wrap justify-center gap-3">
-              {!user && <Link href="/register"><Button>{t("nav.register")}</Button></Link>}
+              {!user && (
+                <Link href="/register" onClick={() => setPendingTrialAnalysis(trialResult)}>
+                  <Button>{t("nav.register")}</Button>
+                </Link>
+              )}
               <Button
                 variant="outline"
                 onClick={() => { setTrialResult(null); setError(null); }}
@@ -138,7 +145,8 @@ export function UploadExperience() {
 
       <button
         onClick={() => setCameraOpen(true)}
-        className="mt-2 flex w-full flex-col items-center justify-center gap-4 rounded-3xl bg-brand-gradient px-8 py-14 text-white shadow-soft transition-transform hover:scale-[1.02] active:scale-100"
+        disabled={!online}
+        className="mt-2 flex w-full flex-col items-center justify-center gap-4 rounded-3xl bg-brand-gradient px-8 py-14 text-white shadow-soft transition-transform hover:scale-[1.02] active:scale-100 disabled:opacity-50 disabled:hover:scale-100"
         // Inline style wins over the bg-brand-gradient class regardless of source order,
         // so a tenant visitor sees their own colors without touching the default class.
         style={organization ? { background: "linear-gradient(135deg, var(--org-primary), var(--org-accent))" } : undefined}
@@ -148,7 +156,7 @@ export function UploadExperience() {
       </button>
 
       {/* Secondary: upload an existing file / PDF. */}
-      <button onClick={() => inputRef.current?.click()} className="text-base font-medium text-brand underline-offset-4 hover:underline">
+      <button onClick={() => inputRef.current?.click()} disabled={!online} className="text-base font-medium text-brand underline-offset-4 hover:underline disabled:opacity-50 disabled:no-underline">
         {t("upload.orChooseFile")}
       </button>
 
@@ -156,6 +164,7 @@ export function UploadExperience() {
       {!user && (
         <p className="text-sm text-brand">{t("trial.remaining").replace("{n}", String(remaining))}</p>
       )}
+      {!online && <p className="text-sm text-amber-700 dark:text-amber-400">{t("offline.uploadDisabled")}</p>}
       {error && <p role="alert" className="text-red-600">{error}</p>}
 
       <input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden"

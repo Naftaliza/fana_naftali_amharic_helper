@@ -8,7 +8,8 @@ public record DocumentSummaryDto(
     string ContentType,
     DateTime UploadedAt,
     bool HasAnalysis,
-    DocumentProcessingStatus Status);
+    DocumentProcessingStatus Status,
+    IReadOnlyList<DeadlineDto> Deadlines);
 
 /// <summary>
 /// Result of queuing a (possibly multi-page) upload for background OCR. The pages haven't been

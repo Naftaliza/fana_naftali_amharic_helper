@@ -13,6 +13,8 @@ import { LanguageGate } from "@/components/LanguageGate";
 import { Onboarding } from "@/components/Onboarding";
 import { OnboardingProvider } from "@/lib/onboarding-context";
 import { LeadFeedbackPrompt } from "@/components/LeadFeedbackPrompt";
+import { SaveTrialAnalysisPrompt } from "@/components/SaveTrialAnalysisPrompt";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 // Runs before paint to set the theme + accessibility options + whether a language has already
 // been chosen, avoiding any flash. Without the 'lang-chosen' class here, a returning visitor
@@ -64,11 +66,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <OnboardingProvider>
                   <SkipLink />
                   <Navbar />
+                  <OfflineBanner />
                   <main id="main" className="mx-auto max-w-6xl px-4 py-8">{children}</main>
                   <AccessibilityWidget />
                   <LanguageGate />
                   <Onboarding />
                   <LeadFeedbackPrompt />
+                  <SaveTrialAnalysisPrompt />
                   <ServiceWorker />
                 </OnboardingProvider>
               </OrganizationProvider>

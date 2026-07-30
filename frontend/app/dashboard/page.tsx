@@ -11,6 +11,7 @@ import { DOCUMENT_STATUS, type DocumentSummary } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ComingUpStrip } from "@/components/ComingUpStrip";
 
 export default function DashboardPage() {
   const { t } = useLanguage();
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const requestDelete = (id: string, e: React.MouseEvent) => {
     e.preventDefault(); // don't navigate into the document
@@ -46,8 +48,18 @@ export default function DashboardPage() {
     if (!loading && !user) router.push("/login");
   }, [loading, user, router]);
 
+  const reload = () => {
+    setFetching(true);
+    setLoadError(false);
+    api.listDocuments()
+      .then(setDocs)
+      .catch(() => setLoadError(true))
+      .finally(() => setFetching(false));
+  };
+
   useEffect(() => {
-    if (user) api.listDocuments().then(setDocs).catch(() => {}).finally(() => setFetching(false));
+    if (user) reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   return (
@@ -57,8 +69,15 @@ export default function DashboardPage() {
         <Link href="/upload"><Button className="whitespace-nowrap"><Plus className="h-5 w-5" />{t("nav.upload")}</Button></Link>
       </div>
 
+      <ComingUpStrip docs={docs} />
+
       {fetching ? (
         <p className="text-gray-500">{t("common.loading")}</p>
+      ) : loadError ? (
+        <Card><CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <p role="alert" className="text-red-600">{t("offline.dashboardError")}</p>
+          <Button variant="outline" onClick={reload}>{t("offline.retry")}</Button>
+        </CardContent></Card>
       ) : docs.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-gray-500 dark:text-gray-400">
           {t("upload.drop")}

@@ -135,3 +135,21 @@ html.a11y-dyslexia * { font-family: "OpenDyslexic", var(--font-sans) !important;
     transition: none !important;
   }
 }
+
+/* Printing an analysis: strip everything that isn't the document's own explanation — nav,
+   accessibility widget, audio player, and sponsored referrals don't belong on a sheet someone
+   hands to a clerk or a relative. Driven by an explicit data attribute rather than Tailwind
+   utility-class selectors (several, like `fixed`, are reused by unrelated overlay components
+   and would be fragile to key off directly). */
+@media print {
+  [data-print-hide] {
+    display: none !important;
+  }
+  body {
+    background: none !important;
+  }
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+}

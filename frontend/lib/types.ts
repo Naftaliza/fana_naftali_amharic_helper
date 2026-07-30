@@ -101,6 +101,7 @@ export interface DocumentSummary {
   uploadedAt: string;
   hasAnalysis: boolean;
   status: number;
+  deadlines: { date: string | null; description: LocalizedText }[];
 }
 
 // What POST /documents returns immediately — OCR hasn't run yet (status is always Pending).

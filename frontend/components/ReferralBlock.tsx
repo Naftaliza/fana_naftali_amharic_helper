@@ -79,7 +79,7 @@ export function ReferralBlock({
   };
 
   return (
-    <Card className="border-brand bg-brand-light dark:bg-brand/15">
+    <Card data-print-hide className="border-brand bg-brand-light dark:bg-brand/15">
       <CardContent className="py-5">
         <div className="mb-3 flex items-center gap-2" dir={dir}>
           <HandHelping className="h-5 w-5 shrink-0 text-brand" />

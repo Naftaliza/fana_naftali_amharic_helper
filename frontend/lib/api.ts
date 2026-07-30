@@ -167,6 +167,10 @@ export const api = {
   // Generic analysis — the AI auto-detects the document type (bank, government, etc.).
   analyze: (id: string) =>
     request<AnalysisResult>(`/api/documents/${id}/analyze`, { method: "POST" }),
+  retryOcr: (id: string) =>
+    request<{ ok: boolean }>(`/api/documents/${id}/retry-ocr`, { method: "POST" }),
+  attachTrialAnalysis: (analysis: AnalysisResult) =>
+    request<DocumentSummary>("/api/documents/attach-trial", { method: "POST", body: JSON.stringify(analysis) }),
 
   // --- Anonymous trial (no auth, nothing saved) ---
   trialAnalyze: (files: File[]) => {

@@ -18,8 +18,11 @@ public class ListDocumentsHandler(
         var list = new List<DocumentSummaryDto>();
         foreach (var d in docs)
         {
-            var hasAnalysis = await analyses.GetByDocumentIdAsync(d.Id, ct) is not null;
-            list.Add(new DocumentSummaryDto(d.Id, d.FileName, d.ContentType, d.UploadedAt, hasAnalysis, d.Status));
+            var analysis = await analyses.GetByDocumentIdAsync(d.Id, ct);
+            var deadlines = analysis?.Deadlines
+                .Select(dl => new DeadlineDto { Date = dl.Date, Description = dl.Description })
+                .ToList() ?? new List<DeadlineDto>();
+            list.Add(new DocumentSummaryDto(d.Id, d.FileName, d.ContentType, d.UploadedAt, analysis is not null, d.Status, deadlines));
         }
         return Result<IReadOnlyList<DocumentSummaryDto>>.Ok(list);
     }

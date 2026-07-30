@@ -141,3 +141,77 @@ public class AnalyzeDocumentHandler(
         return Result<DocumentAnalysisResult>.Ok(result);
     }
 }
+
+// ---- Retry OCR (a Failed document only) ----
+public record RetryOcrCommand(Guid UserId, Guid DocumentId) : IRequest<Result<bool>>;
+
+public class RetryOcrHandler(
+    IDocumentRepository documents,
+    IDocumentProcessingQueue queue) : IRequestHandler<RetryOcrCommand, Result<bool>>
+{
+    public async Task<Result<bool>> Handle(RetryOcrCommand cmd, CancellationToken ct)
+    {
+        var doc = await documents.GetByIdAsync(cmd.DocumentId, ct);
+        if (doc is null || doc.UserId != cmd.UserId)
+            return Result<bool>.Fail("Document not found.");
+        if (doc.Status != DocumentProcessingStatus.Failed)
+            return Result<bool>.Fail("Only a failed document can be retried.");
+
+        // Same reset DocumentProcessor itself would see on a fresh upload — the in-memory queue
+        // doesn't survive a restart (see DocumentProcessingWorker's own startup reconciliation,
+        // which uses this identical Enqueue call), so explicitly re-queuing here is required.
+        doc.Status = DocumentProcessingStatus.Pending;
+        doc.ProcessedPages = 0;
+        doc.ProcessingError = null;
+        await documents.UpdateAsync(doc, ct);
+        queue.Enqueue(doc.Id);
+
+        return Result<bool>.Ok(true);
+    }
+}
+
+// ---- Attach a previously-computed anonymous trial analysis to the now-authenticated account.
+// No OCR text or page files exist for a trial result (the anonymous /api/trial/analyze endpoint
+// never persists either) — this only saves the analysis itself, so the user keeps the
+// explanation/actions/deadlines instead of losing it entirely at the signup moment. ----
+public record AttachTrialAnalysisCommand(Guid UserId, DocumentAnalysisResult Analysis)
+    : IRequest<Result<DocumentSummaryDto>>;
+
+public class AttachTrialAnalysisHandler(
+    IDocumentRepository documents,
+    IDocumentAnalysisRepository analyses) : IRequestHandler<AttachTrialAnalysisCommand, Result<DocumentSummaryDto>>
+{
+    public async Task<Result<DocumentSummaryDto>> Handle(AttachTrialAnalysisCommand cmd, CancellationToken ct)
+    {
+        var typeLabel = cmd.Analysis.DocumentType.En;
+        var doc = new Document
+        {
+            UserId = cmd.UserId,
+            FileName = string.IsNullOrWhiteSpace(typeLabel) ? "Saved analysis" : typeLabel,
+            ContentType = "application/octet-stream",
+            PagePaths = Array.Empty<string>(),
+            PageContentTypes = Array.Empty<string>(),
+            Status = DocumentProcessingStatus.Ready,
+            TotalPages = 0,
+        };
+        await documents.AddAsync(doc, ct);
+
+        await analyses.AddAsync(new DocumentAnalysis
+        {
+            DocumentId = doc.Id,
+            Summary = cmd.Analysis.Summary,
+            DocumentType = cmd.Analysis.DocumentType,
+            Category = cmd.Analysis.Category,
+            UrgencyLevel = cmd.Analysis.UrgencyLevel,
+            KeyPoints = cmd.Analysis.KeyPoints.ToList(),
+            RequiredActions = cmd.Analysis.RequiredActions
+                .Select(a => new RequiredAction(a.Description, a.IsMandatory)).ToList(),
+            Deadlines = cmd.Analysis.Deadlines
+                .Select(d => new Deadline(d.Date, d.Description)).ToList(),
+            Explanation = cmd.Analysis.Explanation,
+        }, ct);
+
+        return Result<DocumentSummaryDto>.Ok(new DocumentSummaryDto(
+            doc.Id, doc.FileName, doc.ContentType, doc.UploadedAt, true, doc.Status, cmd.Analysis.Deadlines));
+    }
+}
