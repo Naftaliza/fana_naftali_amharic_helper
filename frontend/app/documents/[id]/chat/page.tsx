@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useLanguage } from "@/lib/language-context";
 import { LANGUAGE_ENUM } from "@/lib/types";
 import type { ChatMessage } from "@/lib/types";
+import { OutOfCreditsPrompt, isOutOfCreditsError } from "@/components/OutOfCreditsPrompt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -17,6 +18,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
+  const [outOfCredits, setOutOfCredits] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { api.chatHistory(id).then(setMessages).catch(() => {}); }, [id]);
@@ -33,10 +35,17 @@ export default function ChatPage() {
     try {
       const reply = await api.sendChat(id, q, LANGUAGE_ENUM[language]);
       setMessages((m) => [...m, reply]);
+    } catch (err) {
+      // Every other failure here is pre-existing, silent behavior (untouched) — only the new
+      // OUT_OF_CREDITS case gets a real response, since this feature is what introduced it.
+      if (isOutOfCreditsError(err)) { setOutOfCredits(true); return; }
+      throw err;
     } finally {
       setBusy(false);
     }
   };
+
+  if (outOfCredits) return <OutOfCreditsPrompt variant="authenticated" />;
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-11rem)] max-w-2xl flex-col sm:h-[calc(100dvh-9rem)]">

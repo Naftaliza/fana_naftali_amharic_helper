@@ -122,7 +122,11 @@ export default function RegisterPage() {
             />
             <p className="text-xs text-gray-500 dark:text-gray-400">{t("auth.passwordHint")}</p>
             {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-            <p className="text-center text-xs text-gray-500 dark:text-gray-400">{t("auth.registerDisclaimer")}</p>
+            <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+              <Link href="/terms" className="underline hover:text-brand">{t("auth.registerDisclaimer")}</Link>
+              {" "}
+              <Link href="/privacy" className="underline hover:text-brand">{t("legal.privacyLinkText")}</Link>
+            </p>
             <Button
               type="submit"
               className="w-full"

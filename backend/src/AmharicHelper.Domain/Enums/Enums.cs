@@ -72,3 +72,15 @@ public enum DocumentProcessingStatus
     Ready = 2,
     Failed = 3
 }
+
+/// <summary>The kind of movement recorded in <see cref="Entities.UsageLedgerEntry"/>. Balance for
+/// a subject is always SUM(Delta) over their rows — never a mutable counter — so every charge is
+/// individually auditable and a bug can't silently corrupt a running total.</summary>
+public enum UsageLedgerKind
+{
+    Grant = 0,
+    Consume = 1,
+    Expire = 2,
+    Refund = 3,
+    Sponsorship = 4
+}

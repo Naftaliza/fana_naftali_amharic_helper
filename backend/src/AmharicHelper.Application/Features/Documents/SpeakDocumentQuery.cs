@@ -16,7 +16,8 @@ public class SpeakDocumentHandler(
     IDocumentRepository documents,
     IDocumentAnalysisRepository analyses,
     ITtsAudioCacheRepository cache,
-    ITtsProvider tts) : IRequestHandler<SpeakDocumentQuery, Result<TtsAudio>>
+    ITtsProvider tts,
+    IWalletService wallet) : IRequestHandler<SpeakDocumentQuery, Result<TtsAudio>>
 {
     public async Task<Result<TtsAudio>> Handle(SpeakDocumentQuery q, CancellationToken ct)
     {
@@ -24,7 +25,8 @@ public class SpeakDocumentHandler(
         if (doc is null || doc.UserId != q.UserId)
             return Result<TtsAudio>.Fail("Document not found.");
 
-        // Serve previously synthesized audio for this document+language+section for free.
+        // Serve previously synthesized audio for this document+language+section for free — no
+        // credit is charged, since replaying a cached clip costs the app nothing.
         var cached = await cache.GetAsync(q.DocumentId, q.Language, q.Section, ct);
         if (cached is not null)
             return Result<TtsAudio>.Ok(cached);
@@ -36,6 +38,11 @@ public class SpeakDocumentHandler(
         var text = SpokenTextBuilder.Build(analysis, q.Language, q.Section);
         if (string.IsNullOrWhiteSpace(text))
             return Result<TtsAudio>.Fail("Nothing to read for this document.");
+
+        // Only reachable on a cache miss, i.e. only when a paid Azure/ElevenLabs call is about
+        // to actually happen.
+        if (!await wallet.TryConsumeAsync(UsageSubject.ForUser(q.UserId), "tts", q.DocumentId, ct))
+            return Result<TtsAudio>.Fail(WalletErrors.OutOfCredits);
 
         try
         {

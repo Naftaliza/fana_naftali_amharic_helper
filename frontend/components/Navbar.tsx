@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, HelpCircle, ShieldCheck, Building2, BarChart3 } from "lucide-react";
+import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, HelpCircle, ShieldCheck, Building2, BarChart3, Wallet, ScrollText, Gift } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useOrganization } from "@/lib/organization-context";
@@ -150,6 +150,12 @@ export function Navbar() {
                     <Link href="/dashboard" className={itemClass}>
                       <LayoutDashboard className="h-5 w-5 text-brand" />{t("nav.dashboard")}
                     </Link>
+                    <Link href="/wallet" className={itemClass}>
+                      <Wallet className="h-5 w-5 text-brand" />{t("nav.wallet")}
+                    </Link>
+                    <Link href="/gift" className={itemClass}>
+                      <Gift className="h-5 w-5 text-brand" />{t("nav.gift")}
+                    </Link>
                     <Link href="/profile" className={itemClass}>
                       <User className="h-5 w-5 text-brand" />{t("nav.profile")}
                     </Link>
@@ -192,6 +198,16 @@ export function Navbar() {
                     <BarChart3 className="h-5 w-5 text-brand" />{t("nav.analytics")}
                   </Link>
                 )}
+
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+
+                {/* Legal */}
+                <Link href="/terms" className={itemClass}>
+                  <ScrollText className="h-5 w-5 text-brand" />{t("legal.termsTitle")}
+                </Link>
+                <Link href="/privacy" className={itemClass}>
+                  <ShieldCheck className="h-5 w-5 text-brand" />{t("legal.privacyTitle")}
+                </Link>
 
                 <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
 

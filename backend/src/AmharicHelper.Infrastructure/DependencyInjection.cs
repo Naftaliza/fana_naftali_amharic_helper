@@ -11,6 +11,7 @@ using AmharicHelper.Infrastructure.Repositories;
 using AmharicHelper.Infrastructure.Security;
 using AmharicHelper.Infrastructure.Storage;
 using AmharicHelper.Infrastructure.Tts;
+using AmharicHelper.Infrastructure.Wallet;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -41,6 +42,14 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IAnalyticsEventRepository, AnalyticsEventRepository>();
         services.AddScoped<IEventTracker, EventTracker>();
+        services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
+        services.AddScoped<IConsentRepository, ConsentRepository>();
+        services.AddScoped<ISponsorshipRepository, SponsorshipRepository>();
+
+        // Server-side usage meter (see WalletService) — replaces the old client-only
+        // frontend/lib/trial.ts localStorage counter and gates the paid AI/TTS calls behind a
+        // real, race-safe credit ledger rather than nothing at all.
+        services.AddScoped<IWalletService, WalletService>();
 
         // Background OCR pipeline: upload persists pages + enqueues, DocumentProcessingWorker
         // dequeues and runs DocumentProcessor off the request thread (see plan). The queue is
@@ -50,6 +59,11 @@ public static class DependencyInjection
         services.AddSingleton<IDocumentProcessingQueue>(sp => sp.GetRequiredService<DocumentProcessingQueue>());
         services.AddScoped<DocumentProcessor>();
         services.AddHostedService<DocumentProcessingWorker>();
+
+        // Deletes documents past their RetainUntil date (see 021_legal_consent.sql) on a fixed
+        // interval — the app previously kept every uploaded page file (bank/medical/government
+        // letters) forever.
+        services.AddHostedService<RetentionSweepWorker>();
 
         // Provider invoicing: PDF generation (QuestPDF — Community license, revenue-capped; see
         // README) and outbound email, configured via Email:Smtp (reused for both senders below —

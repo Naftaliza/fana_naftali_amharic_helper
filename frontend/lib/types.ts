@@ -352,3 +352,49 @@ export interface UpdateProvider {
   priority: number;
   pricePerLead: number;
 }
+
+// Server-side usage meter (replaces the old client-only lib/trial.ts localStorage counter).
+export interface WalletBalance {
+  balance: number;
+  freeTierMonthlyCredits: number;
+}
+export interface UsageLedgerEntry {
+  createdAt: string;
+  kind: number; // 0=Grant 1=Consume 2=Expire 3=Refund 4=Sponsorship
+  delta: number;
+  operation: string;
+  note: string;
+  documentId: string | null;
+}
+export interface WalletSummary {
+  balance: WalletBalance;
+  history: UsageLedgerEntry[];
+}
+
+// A Terms/Privacy document body in one language (GET /api/legal/{kind}).
+export interface LegalDocument {
+  kind: string;
+  version: number;
+  body: string;
+  effectiveAt: string;
+}
+
+// Sponsorship: someone else pays. Gifting credits from your own balance to someone else via a
+// single-use redeem link (see backend Sponsorship entity).
+export interface CreateSponsorshipResult {
+  id: string;
+  redeemToken: string; // shown exactly once — only its hash is ever stored server-side
+  credits: number;
+  expiresAt: string;
+}
+export interface SponsorshipSummary {
+  id: string;
+  credits: number;
+  redeemed: boolean;
+  createdAt: string;
+  expiresAt: string;
+}
+export interface RedeemSponsorshipResult {
+  creditsGranted: number;
+  newBalance: number;
+}

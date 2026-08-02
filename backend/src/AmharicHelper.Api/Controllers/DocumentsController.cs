@@ -5,10 +5,12 @@ using AmharicHelper.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AmharicHelper.Api.Controllers;
 
 [Authorize]
+[EnableRateLimiting("documents")]
 public class DocumentsController(IMediator mediator) : ApiControllerBase(mediator)
 {
     /// <summary>

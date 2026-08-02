@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Lock } from "lucide-react";
+import { Camera } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useOrganization } from "@/lib/organization-context";
-import { incrementTrial, trialRemaining, TRIAL_LIMIT } from "@/lib/trial";
 import { setPendingTrialAnalysis } from "@/lib/pendingTrialAnalysis";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { loc, type AnalysisResult } from "@/lib/types";
 import { AnalysisCard } from "@/components/AnalysisCard";
 import { AnalyzingState } from "@/components/AnalyzingState";
 import { CameraCapture } from "@/components/CameraCapture";
+import { OutOfCreditsPrompt, isOutOfCreditsError } from "@/components/OutOfCreditsPrompt";
 import { ShareButton } from "@/components/ShareButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,12 +42,15 @@ export function UploadExperience() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [remaining, setRemaining] = useState(TRIAL_LIMIT);
+  // Set once a trial call actually comes back OUT_OF_CREDITS — the server is now the sole source
+  // of truth on remaining tries (see IWalletService), replacing the old client-only
+  // lib/trial.ts localStorage counter that any user could reset by clearing browser storage.
+  // That also means this can no longer be checked proactively before the first attempt; it's
+  // discovered reactively, same as any other API error.
+  const [outOfCredits, setOutOfCredits] = useState(false);
   const [trialResult, setTrialResult] = useState<AnalysisResult | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const online = useOnlineStatus();
-
-  useEffect(() => { setRemaining(trialRemaining()); }, []);
 
   const handleFiles = async (files: File[]) => {
     if (!files.length) return;
@@ -62,40 +65,33 @@ export function UploadExperience() {
     try {
       if (user) {
         // Upload returns immediately (202) — OCR hasn't run yet, so page-skip info isn't known
-        // until the document page polls GET /documents/{id} and Status reaches Ready.
+        // until the document page polls GET /documents/{id} and Status reaches Ready. Upload
+        // itself isn't metered (only analyze/speech/chat are — see the plan), so this call
+        // can't come back OUT_OF_CREDITS.
         const doc = await api.uploadDocument(files);
         router.push(`/documents/${doc.id}`);
       } else {
         const result = await api.trialAnalyze(files);
-        incrementTrial();
-        setRemaining(trialRemaining());
         setTrialResult(result);
         setBusy(false);
       }
     } catch (err) {
+      if (isOutOfCreditsError(err)) {
+        setOutOfCredits(true);
+        setBusy(false);
+        return;
+      }
       const msg = (err as Error).message;
       setError(ERROR_MESSAGE_KEYS[msg] ? t(ERROR_MESSAGE_KEYS[msg]) : msg);
       setBusy(false);
     }
   };
 
-  const outOfTries = !user && remaining <= 0;
-
   // While a document is being uploaded/analyzed, show the reassuring step indicator.
   if (busy) return <AnalyzingState />;
 
-  if (!authLoading && outOfTries && !trialResult) {
-    return (
-      <div className="mx-auto flex max-w-md flex-col items-center gap-6 pt-16 text-center">
-        <Lock className="h-14 w-14 text-brand" />
-        <h1 className="text-2xl font-bold">{t("trial.overTitle")}</h1>
-        <p className="text-lg text-gray-600 dark:text-gray-400">{t("trial.overBody")}</p>
-        <div className="flex w-full flex-col gap-3">
-          <Link href="/register"><Button size="lg" className="w-full">{t("nav.register")}</Button></Link>
-          <Link href="/login"><Button variant="outline" size="lg" className="w-full">{t("nav.login")}</Button></Link>
-        </div>
-      </div>
-    );
+  if (!authLoading && outOfCredits && !trialResult) {
+    return <OutOfCreditsPrompt variant="anonymous" />;
   }
 
   if (trialResult) {
@@ -104,7 +100,7 @@ export function UploadExperience() {
         <AnalysisCard analysis={trialResult} trial />
         <Card className="border-brand bg-brand-light dark:bg-brand/15">
           <CardContent className="flex flex-col items-center gap-3 py-6 text-center">
-            {!user && <p className="text-lg font-medium">{t("trial.savePrompt").replace("{n}", String(remaining))}</p>}
+            {!user && <p className="text-lg font-medium">{t("trial.savePrompt")}</p>}
             <div className="flex flex-wrap justify-center gap-3">
               {!user && (
                 <Link href="/register" onClick={() => setPendingTrialAnalysis(trialResult)}>
@@ -114,7 +110,6 @@ export function UploadExperience() {
               <Button
                 variant="outline"
                 onClick={() => { setTrialResult(null); setError(null); }}
-                disabled={!user && remaining <= 0}
               >
                 {t("trial.tryAnother")}
               </Button>
@@ -161,9 +156,6 @@ export function UploadExperience() {
       </button>
 
       <p className="text-sm text-gray-500 dark:text-gray-400">{t("upload.formats")}</p>
-      {!user && (
-        <p className="text-sm text-brand">{t("trial.remaining").replace("{n}", String(remaining))}</p>
-      )}
       {!online && <p className="text-sm text-amber-700 dark:text-amber-400">{t("offline.uploadDisabled")}</p>}
       {error && <p role="alert" className="text-red-600">{error}</p>}
 

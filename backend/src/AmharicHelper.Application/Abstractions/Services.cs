@@ -1,4 +1,6 @@
+using AmharicHelper.Application.Common;
 using AmharicHelper.Domain.Entities;
+using AmharicHelper.Domain.Enums;
 
 namespace AmharicHelper.Application.Abstractions;
 
@@ -44,4 +46,43 @@ public interface IDocumentProcessingQueue
 public interface IEventTracker
 {
     Task TrackAsync(string eventName, Guid? userId = null, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Owns the server-side credit meter (see UsageLedgerEntry). This is the only interface allowed
+/// to write UsageLedger rows — every write is transactional and serialized per subject (a
+/// Postgres advisory lock keyed on the subject), so two concurrent requests from the same
+/// low-balance subject can never both succeed against the same last credit. A subject with no
+/// grants yet is lazily given a monthly free-tier allowance the first time they try to spend,
+/// rather than requiring a signup-time grant or a cron job.
+/// </summary>
+public interface IWalletService
+{
+    Task<int> GetBalanceAsync(UsageSubject subject, CancellationToken ct = default);
+
+    /// <summary>Attempts to spend exactly 1 credit for <paramref name="operation"/>. Lazily grants
+    /// the monthly free tier first if the subject hasn't received one yet this calendar month and
+    /// has no other balance. Returns false (and consumes nothing) if the subject is out of
+    /// credits — callers must not proceed with the paid operation in that case.</summary>
+    Task<bool> TryConsumeAsync(
+        UsageSubject subject, string operation, Guid? documentId = null, CancellationToken ct = default);
+
+    Task GrantAsync(
+        UsageSubject subject, int credits, UsageLedgerKind kind, string note, CancellationToken ct = default);
+
+    /// <summary>Deducts <paramref name="credits"/> from the subject's balance for an outbound
+    /// sponsorship gift — atomic and serialized per subject like TryConsumeAsync, but unlike it,
+    /// this never triggers the lazy monthly free-tier grant. Gifting isn't "trying the product",
+    /// so it shouldn't manufacture credits that didn't already exist; a sponsor can only give away
+    /// credits they already have. Returns false (no write) if the current balance can't cover it.</summary>
+    Task<bool> TryDebitForSponsorshipAsync(
+        UsageSubject subject, int credits, string note, CancellationToken ct = default);
+
+    /// <summary>Credits a beneficiary on successful Sponsorship redemption. A thin wrapper over
+    /// GrantAsync with Operation recorded as "sponsorship_received" instead of "grant", so wallet
+    /// history can tell a received gift apart from an admin top-up.</summary>
+    Task GrantSponsorshipAsync(UsageSubject subject, int credits, string note, CancellationToken ct = default);
+
+    Task<IReadOnlyList<UsageLedgerEntry>> GetHistoryAsync(
+        UsageSubject subject, int limit, CancellationToken ct = default);
 }

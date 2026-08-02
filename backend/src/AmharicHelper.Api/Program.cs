@@ -44,6 +44,12 @@ builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = Compre
 builder.Services.AddOutputCache(o =>
 {
     o.AddPolicy("org-branding", p => p.Cache().Expire(TimeSpan.FromMinutes(2)).SetVaryByRouteValue("slug"));
+    // Varies by both {kind} (terms/privacy) and ?language — without both, every legal-doc
+    // request would collide on one shared cache entry regardless of which document or language
+    // was actually requested (SetVaryByRouteValue("slug") above is a no-op for a route with no
+    // "slug" segment, so this policy is deliberately separate rather than reused).
+    o.AddPolicy("legal-doc", p => p.Cache().Expire(TimeSpan.FromMinutes(10))
+        .SetVaryByRouteValue("kind").SetVaryByQuery("language"));
 });
 builder.Services.AddSwaggerGen(o =>
 {
@@ -106,6 +112,17 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("referrals", ctx => RateLimitPartition.GetFixedWindowLimiter(
         partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1) }));
+
+    // DocumentsController previously had no rate limiting at all — upload triggers OCR
+    // (Haiku vision) automatically in the background, so an unbounded client could burn paid
+    // Anthropic spend with no cap beyond this. The UsageLedger (see WalletService) is the real
+    // business-rule cap on analyze/speech/chat; this is the abuse backstop underneath it,
+    // partitioned by authenticated user rather than IP since every route here requires a JWT.
+    options.AddPolicy("documents", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: ctx.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                      ?? ctx.User?.FindFirst("sub")?.Value
+                      ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
 });
 
 // CORS for the Next.js frontend. Frontend:Origin may be a comma-separated list
@@ -114,8 +131,29 @@ const string CorsPolicy = "frontend";
 var frontendOrigins = (builder.Configuration["Frontend:Origin"] ?? "http://localhost:3000")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(o => o.AddPolicy(CorsPolicy, p =>
-    p.WithOrigins(frontendOrigins)
-     .AllowAnyHeader().AllowAnyMethod()));
+{
+    if (builder.Environment.IsDevelopment())
+    {
+        // Local dev is reached from many hosts (localhost, phone over LAN, phone over a VS Code
+        // devtunnel with a new random ID each time) - pattern-match instead of requiring every
+        // one listed in Frontend:Origin, so switching between them needs no API restart.
+        p.SetIsOriginAllowed(origin =>
+            frontendOrigins.Contains(origin) ||
+            (Uri.TryCreate(origin, UriKind.Absolute, out var uri) && IsLocalDevHost(uri.Host)));
+    }
+    else
+    {
+        p.WithOrigins(frontendOrigins);
+    }
+    p.AllowAnyHeader().AllowAnyMethod();
+}));
+
+static bool IsLocalDevHost(string host) =>
+    host is "localhost" or "127.0.0.1"
+    || host.StartsWith("192.168.", StringComparison.Ordinal)
+    || host.StartsWith("10.", StringComparison.Ordinal)
+    || System.Text.RegularExpressions.Regex.IsMatch(host, @"^172\.(1[6-9]|2\d|3[01])\.")
+    || host.EndsWith(".devtunnels.ms", StringComparison.OrdinalIgnoreCase);
 
 var app = builder.Build();
 

@@ -14,6 +14,7 @@ import { Onboarding } from "@/components/Onboarding";
 import { OnboardingProvider } from "@/lib/onboarding-context";
 import { LeadFeedbackPrompt } from "@/components/LeadFeedbackPrompt";
 import { SaveTrialAnalysisPrompt } from "@/components/SaveTrialAnalysisPrompt";
+import { RedeemPendingPrompt } from "@/components/RedeemPendingPrompt";
 import { OfflineBanner } from "@/components/OfflineBanner";
 
 // Runs before paint to set the theme + accessibility options + whether a language has already
@@ -73,6 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Onboarding />
                   <LeadFeedbackPrompt />
                   <SaveTrialAnalysisPrompt />
+                  <RedeemPendingPrompt />
                   <ServiceWorker />
                 </OnboardingProvider>
               </OrganizationProvider>

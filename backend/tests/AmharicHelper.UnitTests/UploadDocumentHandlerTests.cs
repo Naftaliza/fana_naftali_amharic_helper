@@ -49,6 +49,8 @@ public class UploadDocumentHandlerTests
             => Task.FromResult<IReadOnlyList<Document>>(Array.Empty<Document>());
         public Task<IReadOnlyList<Document>> ListUnfinishedAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<Document>>(Array.Empty<Document>());
+        public Task<IReadOnlyList<Document>> ListExpiredAsync(DateTime nowUtc, int limit, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<Document>>(Array.Empty<Document>());
         public Task AddAsync(Document document, CancellationToken ct = default) { Added = document; return Task.CompletedTask; }
         public Task UpdateAsync(Document document, CancellationToken ct = default) => Task.CompletedTask;
         public Task DeleteAsync(Guid id, CancellationToken ct = default) { DeletedIds.Add(id); return Task.CompletedTask; }

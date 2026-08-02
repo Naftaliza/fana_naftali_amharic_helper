@@ -45,6 +45,11 @@ public interface IDocumentRepository
     /// or redeploy mid-job. Used by DocumentProcessingWorker on startup to re-queue unfinished work,
     /// since the in-memory queue itself doesn't survive a restart.</summary>
     Task<IReadOnlyList<Document>> ListUnfinishedAsync(CancellationToken ct = default);
+
+    /// <summary>Documents whose RetainUntil has passed, oldest first, capped at limit per call so
+    /// a sweep with a large backlog doesn't try to delete thousands of documents in one pass. Used
+    /// by RetentionSweepWorker.</summary>
+    Task<IReadOnlyList<Document>> ListExpiredAsync(DateTime nowUtc, int limit, CancellationToken ct = default);
 }
 
 public interface IDocumentAnalysisRepository
@@ -154,6 +159,38 @@ public interface IAnalyticsEventRepository
     /// <summary>Individual occurrences of one event since a cutoff, newest first — the click-through
     /// list behind a funnel bar. Email is null when the account has since been deleted.</summary>
     Task<IReadOnlyList<EventDetailDto>> GetEventDetailsAsync(string name, DateTime sinceUtc, CancellationToken ct = default);
+}
+
+/// <summary>Versioned Terms/Privacy documents (see <see cref="LegalDocument"/>).</summary>
+public interface ILegalDocumentRepository
+{
+    /// <summary>The highest-versioned row for this kind ("terms" | "privacy"), or null if none seeded.</summary>
+    Task<LegalDocument?> GetLatestAsync(string kind, CancellationToken ct = default);
+}
+
+/// <summary>Immutable acceptance records (see <see cref="ConsentRecord"/>).</summary>
+public interface IConsentRepository
+{
+    Task AddAsync(ConsentRecord record, CancellationToken ct = default);
+}
+
+/// <summary>Gifted credits redeemable via a single-use link (see <see cref="Sponsorship"/>).</summary>
+public interface ISponsorshipRepository
+{
+    Task AddAsync(Sponsorship sponsorship, CancellationToken ct = default);
+
+    /// <summary>The row whose RedeemTokenHash matches, regardless of whether it's already been
+    /// redeemed or has expired — the caller decides what to do with that state.</summary>
+    Task<Sponsorship?> GetByRedeemTokenHashAsync(string redeemTokenHash, CancellationToken ct = default);
+
+    /// <summary>Atomically marks a sponsorship as redeemed via a conditional UPDATE
+    /// (`WHERE RedeemedByUserId IS NULL`) — that WHERE clause is the concurrency guard, so two
+    /// simultaneous redemption attempts with the same token can't both succeed without needing a
+    /// separate lock. Returns false if another request already redeemed it first.</summary>
+    Task<bool> TryMarkRedeemedAsync(Guid id, Guid redeemedByUserId, DateTime redeemedAt, CancellationToken ct = default);
+
+    /// <summary>A sponsor's own gift history, newest first.</summary>
+    Task<IReadOnlyList<Sponsorship>> ListBySponsorAsync(Guid sponsorUserId, CancellationToken ct = default);
 }
 
 /// <summary>Persisted, immutable invoice snapshots for provider billing (see <see cref="Invoice"/>).</summary>
