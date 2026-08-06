@@ -14,12 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // One entry's label — mirrors the backend Operation strings ("analyze" | "tts" | "chat" |
-// "free_tier_monthly" | "grant" | "sponsorship_sent" | "sponsorship_received") plus the
-// fallback for anything not yet mapped.
+// "free_tier" | "grant" | "sponsorship_sent" | "sponsorship_received") plus the fallback for
+// anything not yet mapped. free_tier_monthly is kept for historical ledger rows written before
+// the free tier became one-time rather than renewing (see WalletService.TryConsumeAsync).
 const OPERATION_KEYS: Record<string, string> = {
   analyze: "wallet.opAnalyze",
   tts: "wallet.opTts",
   chat: "wallet.opChat",
+  free_tier: "wallet.opFreeTier",
   free_tier_monthly: "wallet.opFreeTier",
   grant: "wallet.opGrant",
   sponsorship_sent: "wallet.opSponsorshipSent",
@@ -73,7 +75,7 @@ export default function WalletPage() {
                 <p className="text-3xl font-bold text-brand">{summary.balance.balance}</p>
               </div>
               <p className="max-w-[14rem] text-end text-sm text-gray-500 dark:text-gray-400">
-                {t("wallet.freeTierNote").replace("{n}", String(summary.balance.freeTierMonthlyCredits))}
+                {t("wallet.freeTierNote").replace("{n}", String(summary.balance.freeTierCredits))}
               </p>
             </CardContent>
           </Card>

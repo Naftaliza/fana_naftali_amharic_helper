@@ -371,7 +371,8 @@ export interface UpdateProvider {
 // Server-side usage meter (replaces the old client-only lib/trial.ts localStorage counter).
 export interface WalletBalance {
   balance: number;
-  freeTierMonthlyCredits: number;
+  // One-time, not renewing — see backend WalletService.TryConsumeAsync.
+  freeTierCredits: number;
 }
 export interface UsageLedgerEntry {
   createdAt: string;
