@@ -21,9 +21,8 @@ public class UsageLedgerEntry
     /// Consume/Expire.</summary>
     public int Delta { get; set; }
 
-    /// <summary>What the credit paid for: "analyze" | "tts" | "chat" | "free_tier" (an automatic
-    /// one-time grant, not a real spend — "free_tier_monthly" is the same thing under the old,
-    /// pre-one-time operation name, kept only so historical rows still read sensibly).</summary>
+    /// <summary>What the credit paid for: "analyze" | "tts" | "chat" | "free_tier_monthly" (the
+    /// operation name of an automatic monthly refill grant, not a real spend).</summary>
     public string Operation { get; set; } = string.Empty;
 
     /// <summary>Observed provider cost in USD for this movement, when known — the first place

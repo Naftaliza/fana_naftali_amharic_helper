@@ -1,7 +1,7 @@
 namespace AmharicHelper.Application.DTOs;
 
 /// <summary>The credit balance and its free-tier context for one subject.</summary>
-public record WalletBalanceDto(int Balance, int FreeTierCredits);
+public record WalletBalanceDto(int Balance, int FreeTierMonthlyCredits);
 
 public record UsageLedgerEntryDto(
     DateTime CreatedAt, int Kind, int Delta, string Operation, string Note, Guid? DocumentId);

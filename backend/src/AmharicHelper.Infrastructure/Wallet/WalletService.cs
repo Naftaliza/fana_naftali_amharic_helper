@@ -57,29 +57,23 @@ public class WalletService(ISqlConnectionFactory factory) : IWalletService
 
             if (balance <= 0)
             {
-                // One-time, not renewing: a subject (registered or anonymous/device-tracked) gets
-                // this exactly once, ever — checked with no time window at all, just "has this
-                // subject received it before". A renewing free tier let an anonymous visitor use
-                // the product indefinitely via the device-id subject without ever registering,
-                // which defeated the point of a free *trial*. Checks both the old and new
-                // operation name so a subject that already received the previous monthly grant
-                // (before this change) doesn't get a second, redundant one-time grant on top of it.
-                var alreadyGranted = await conn.ExecuteScalarAsync<bool>(
+                var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                var alreadyGrantedThisMonth = await conn.ExecuteScalarAsync<bool>(
                     """
                     SELECT EXISTS(
                         SELECT 1 FROM UsageLedger
                         WHERE ((@UserId::uuid IS NOT NULL AND UserId = @UserId) OR (@ContactHash IS NOT NULL AND ContactHash = @ContactHash))
-                          AND Operation IN ('free_tier', 'free_tier_monthly')
+                          AND Operation = 'free_tier_monthly' AND CreatedAt >= @monthStart
                     )
                     """,
-                    new { subject.UserId, subject.ContactHash }, tx);
+                    new { subject.UserId, subject.ContactHash, monthStart }, tx);
 
-                if (!alreadyGranted)
+                if (!alreadyGrantedThisMonth)
                 {
                     await conn.ExecuteAsync(InsertSql, NewEntry(
-                        subject, UsageLedgerKind.Grant, WalletDefaults.FreeTierCredits,
-                        "free_tier", null, "One-time free tier"), tx);
-                    balance += WalletDefaults.FreeTierCredits;
+                        subject, UsageLedgerKind.Grant, WalletDefaults.FreeTierMonthlyCredits,
+                        "free_tier_monthly", null, "Monthly free tier"), tx);
+                    balance += WalletDefaults.FreeTierMonthlyCredits;
                 }
             }
 

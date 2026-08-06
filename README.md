@@ -83,8 +83,8 @@ can help with that document.
 > and anonymous trial visitors alike, replacing a client-only `localStorage`
 > counter that any user could reset and that never covered the authenticated
 > analyze/chat endpoints at all. Every subject (a registered account, or an
-> anonymous device id / IP for the trial flow) gets a one-time, non-renewing
-> free tier (3 credits), granted lazily on first use rather than at signup; consuming a
+> anonymous device id / IP for the trial flow) gets a monthly free tier (3
+> credits), granted lazily on first use rather than at signup; consuming a
 > credit is serialized per subject with a Postgres advisory-lock transaction
 > so two simultaneous requests against a subject's last credit can't both
 > succeed. There's no payment rail yet — an admin grants credits manually
@@ -139,7 +139,7 @@ can help with that document.
 | Hardening | Per-endpoint rate limiting (auth/trial/referrals/**documents**) · CORS policy · PWA service worker · accessibility widget |
 | Performance | Brotli/gzip response compression · output caching on the tenant-branding endpoint · indexed hot query paths (`Users.OrganizationId`, `DocumentAnalyses.CreatedAt`) · immutable-cached static assets and tree-shaken icon imports on the frontend |
 | Health    | `/health` runs a real Postgres connectivity check (`DatabaseHealthCheck`), not a static literal — returns 503 when the database is unreachable |
-| Wallet    | `IWalletService` → `WalletService` — an append-only `UsageLedger` (balance is always `SUM(Delta)`, never a mutable column) meters analyze/speech(on a cache miss)/chat for both authenticated users and anonymous trial visitors; `TryConsumeAsync` is serialized per subject via a Postgres advisory-lock transaction (`pg_advisory_xact_lock`) so two concurrent requests against a subject's last credit can't both succeed; a one-time, non-renewing free tier (3 credits) is granted lazily on first spend; admin-only manual grants (`POST /api/admin/wallet/grant`, by email or phone — no payment rail yet) |
+| Wallet    | `IWalletService` → `WalletService` — an append-only `UsageLedger` (balance is always `SUM(Delta)`, never a mutable column) meters analyze/speech(on a cache miss)/chat for both authenticated users and anonymous trial visitors; `TryConsumeAsync` is serialized per subject via a Postgres advisory-lock transaction (`pg_advisory_xact_lock`) so two concurrent requests against a subject's last credit can't both succeed; a monthly free tier (3 credits) is granted lazily on first spend; admin-only manual grants (`POST /api/admin/wallet/grant`, by email or phone — no payment rail yet) |
 | Sponsorship | Gift credits to someone else (`/gift`) — `TryDebitForSponsorshipAsync` deducts from the sponsor's own balance at creation time (same advisory-lock pattern as `TryConsumeAsync`, but never triggers the free-tier grant), a one-time link is returned (raw token shown once, only its SHA-256 hash persisted), and redemption (`POST /api/wallet/redeem/{token}`) is race-safe via a conditional `UPDATE ... WHERE RedeemedByUserId IS NULL`. A visitor who isn't signed in yet has the token stashed client-side and redeemed automatically once they finish registering/logging in |
 | Legal     | Versioned Terms/Privacy documents (`LegalDocuments`, trilingual) served at `/terms` and `/privacy`; `ConsentRecords` for acceptance evidence; every `Document` carries a `RetainUntil` (24 months from upload by default), swept by a background `RetentionSweepWorker` |
 

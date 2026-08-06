@@ -7,13 +7,12 @@ using Microsoft.Extensions.Configuration;
 
 namespace AmharicHelper.Application.Features.Wallet;
 
-/// <summary>One-time (not renewing) free-tier allowance a subject with no other balance is
-/// lazily granted the first time they try to spend (see IWalletService.TryConsumeAsync) — kept
-/// here rather than in WalletService so the admin console and any future pricing page can
-/// display the same number.</summary>
+/// <summary>Monthly free-tier allowance a subject with no other balance is lazily granted the
+/// first time they try to spend (see IWalletService.TryConsumeAsync) — kept here rather than in
+/// WalletService so the admin console and any future pricing page can display the same number.</summary>
 public static class WalletDefaults
 {
-    public const int FreeTierCredits = 3;
+    public const int FreeTierMonthlyCredits = 3;
 }
 
 // ---- Authenticated: my balance + recent history ----
@@ -31,7 +30,7 @@ public class GetWalletHandler(IWalletService wallet) : IRequestHandler<GetWallet
             .Select(e => new UsageLedgerEntryDto(e.CreatedAt, (int)e.Kind, e.Delta, e.Operation, e.Note, e.DocumentId))
             .ToList();
         return Result<WalletSummaryDto>.Ok(new WalletSummaryDto(
-            new WalletBalanceDto(balance, WalletDefaults.FreeTierCredits), historyDtos));
+            new WalletBalanceDto(balance, WalletDefaults.FreeTierMonthlyCredits), historyDtos));
     }
 }
 

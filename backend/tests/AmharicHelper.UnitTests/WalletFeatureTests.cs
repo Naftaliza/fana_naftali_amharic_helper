@@ -75,7 +75,7 @@ public class WalletFeatureTests
 
         Assert.True(result.Success);
         Assert.Equal(2, result.Value!.Balance.Balance);
-        Assert.Equal(WalletDefaults.FreeTierCredits, result.Value.Balance.FreeTierCredits);
+        Assert.Equal(WalletDefaults.FreeTierMonthlyCredits, result.Value.Balance.FreeTierMonthlyCredits);
     }
 
     [Fact]
