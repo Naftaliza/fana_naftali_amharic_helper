@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, Pause, Play } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/api";
-import { LANGUAGE_ENUM, SPOKEN_SECTION, type AnalysisResult, type SpokenSectionKey } from "@/lib/types";
+import { LANGUAGE_ENUM, SPOKEN_SECTION, type AnalysisResult, type Language, type SpokenSectionKey } from "@/lib/types";
 
 /**
  * Small per-card play button — lets a low-literacy user hear just one passage (e.g. "just the
@@ -17,18 +17,23 @@ export function SectionAudioButton({
   trial = false,
   section,
   label,
+  audioSrcFor,
 }: {
   analysis: AnalysisResult;
   documentId?: string;
   trial?: boolean;
   section: SpokenSectionKey;
   label: string;
+  // See AnalysisCard's audioSrcFor doc. Only "Full" is guaranteed to exist for a static bundle
+  // (e.g. /sample) — a null return here hides the button rather than showing a broken control.
+  audioSrcFor?: (section: SpokenSectionKey, language: Language) => string | null;
 }) {
   const { language } = useLanguage();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState(false);
+  const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -48,6 +53,8 @@ export function SectionAudioButton({
     }
     setPlaying(false);
     setError(false);
+    // A different language may have a clip where this one didn't — give it another chance.
+    setHidden(false);
   }, [language]);
 
   const toggle = async () => {
@@ -60,21 +67,30 @@ export function SectionAudioButton({
     setError(false);
     setLoading(true);
     try {
-      const blob = trial || !documentId
-        ? await api.trialSpeech(analysis, LANGUAGE_ENUM[language], SPOKEN_SECTION[section])
-        : await api.speech(documentId, LANGUAGE_ENUM[language], SPOKEN_SECTION[section]);
-      const audio = new Audio(URL.createObjectURL(blob));
+      let audio: HTMLAudioElement;
+      if (audioSrcFor) {
+        const src = audioSrcFor(section, language);
+        if (!src) { setHidden(true); return; }
+        audio = new Audio(src);
+      } else {
+        const blob = trial || !documentId
+          ? await api.trialSpeech(analysis, LANGUAGE_ENUM[language], SPOKEN_SECTION[section])
+          : await api.speech(documentId, LANGUAGE_ENUM[language], SPOKEN_SECTION[section]);
+        audio = new Audio(URL.createObjectURL(blob));
+      }
       audioRef.current = audio;
       audio.onended = () => setPlaying(false);
-      audio.onerror = () => { setPlaying(false); setError(true); };
+      audio.onerror = () => { setPlaying(false); if (audioSrcFor) setHidden(true); else setError(true); };
       await audio.play();
       setPlaying(true);
     } catch {
-      setError(true);
+      if (audioSrcFor) setHidden(true); else setError(true);
     } finally {
       setLoading(false);
     }
   };
+
+  if (hidden) return null;
 
   return (
     <button

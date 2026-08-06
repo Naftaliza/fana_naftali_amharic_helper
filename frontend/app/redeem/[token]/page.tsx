@@ -8,6 +8,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/api";
 import { setPendingRedeemToken } from "@/lib/pendingRedeemToken";
+import { FEATURE_WALLET } from "@/lib/featureFlags";
+import { useFeatureGate } from "@/lib/useFeatureGate";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -22,12 +24,13 @@ export default function RedeemPage() {
   const params = useParams();
   const token = params.token as string;
   const dir = rtl ? "rtl" : "ltr";
+  const enabled = useFeatureGate(FEATURE_WALLET);
 
   const [state, setState] = useState<"checking" | "needs-auth" | "redeeming" | "done" | "error">("checking");
   const [creditsGranted, setCreditsGranted] = useState(0);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (!enabled || authLoading) return;
     if (!user) {
       setPendingRedeemToken(token);
       setState("needs-auth");
@@ -37,8 +40,9 @@ export default function RedeemPage() {
     api.redeemSponsorship(token)
       .then((res) => { setCreditsGranted(res.creditsGranted); setState("done"); })
       .catch(() => setState("error"));
-  }, [authLoading, user, token]);
+  }, [enabled, authLoading, user, token]);
 
+  if (!enabled) return null;
   if (authLoading || state === "checking") {
     return <p className="text-gray-500 dark:text-gray-400">{t("common.loading")}</p>;
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useLanguage } from "@/lib/language-context";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -27,6 +28,7 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   const { t, rtl } = useLanguage();
+  const trapRef = useFocusTrap(open, onCancel);
 
   if (!open) return null;
 
@@ -37,7 +39,7 @@ export function ConfirmDialog({
       aria-label={title}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
     >
-      <div dir={rtl ? "rtl" : "ltr"} className="relative w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-soft dark:bg-gray-900">
+      <div ref={trapRef} dir={rtl ? "rtl" : "ltr"} className="relative w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-soft dark:bg-gray-900">
         <h2 className="mb-2 text-xl font-bold">{title}</h2>
         <p className="mb-6 text-gray-600 dark:text-gray-400">{body}</p>
         <div className="flex gap-3">

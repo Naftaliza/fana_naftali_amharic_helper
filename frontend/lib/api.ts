@@ -23,6 +23,7 @@ import type {
   ProviderApplication,
   RedeemSponsorshipResult,
   SponsorshipSummary,
+  Transcript,
   UpdateOrganizationPayload,
   UpdateProvider,
   UploadDocumentResult,
@@ -347,6 +348,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ question, responseLanguage }),
     }),
+
+  // --- Voice input (speech-to-text for the chat "ask out loud" mic button). Deliberately
+  // unmetered on the backend — see TranscribeAudioCommand — so no credit-related error handling
+  // is needed here beyond the usual network/rate-limit codes request() already surfaces. ---
+  transcribe: (blob: Blob, language: number, fileName = "question.webm") => {
+    const form = new FormData();
+    form.append("audio", blob, fileName);
+    return request<Transcript>(`/api/documents/transcribe?language=${language}`, { method: "POST", body: form });
+  },
+  trialTranscribe: (blob: Blob, language: number, fileName = "question.webm") => {
+    const form = new FormData();
+    form.append("audio", blob, fileName);
+    return request<Transcript>(`/api/trial/transcribe?language=${language}`, {
+      method: "POST", body: form, headers: { "X-Device-Id": getDeviceId() },
+    });
+  },
 
   // --- Wallet (server-side usage meter — replaces lib/trial.ts) ---
   getWallet: () => request<WalletSummary>("/api/wallet"),

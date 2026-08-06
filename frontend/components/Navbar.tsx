@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useOrganization } from "@/lib/organization-context";
 import { useTheme } from "@/lib/theme-context";
+import { FEATURE_WALLET } from "@/lib/featureFlags";
 import { LANGUAGES } from "@/lib/types";
 import { Flag } from "@/components/ui/Flag";
 
@@ -150,12 +151,16 @@ export function Navbar() {
                     <Link href="/dashboard" className={itemClass}>
                       <LayoutDashboard className="h-5 w-5 text-brand" />{t("nav.dashboard")}
                     </Link>
-                    <Link href="/wallet" className={itemClass}>
-                      <Wallet className="h-5 w-5 text-brand" />{t("nav.wallet")}
-                    </Link>
-                    <Link href="/gift" className={itemClass}>
-                      <Gift className="h-5 w-5 text-brand" />{t("nav.gift")}
-                    </Link>
+                    {FEATURE_WALLET && (
+                      <Link href="/wallet" className={itemClass}>
+                        <Wallet className="h-5 w-5 text-brand" />{t("nav.wallet")}
+                      </Link>
+                    )}
+                    {FEATURE_WALLET && (
+                      <Link href="/gift" className={itemClass}>
+                        <Gift className="h-5 w-5 text-brand" />{t("nav.gift")}
+                      </Link>
+                    )}
                     <Link href="/profile" className={itemClass}>
                       <User className="h-5 w-5 text-brand" />{t("nav.profile")}
                     </Link>

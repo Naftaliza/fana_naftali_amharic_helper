@@ -126,4 +126,16 @@ public class DocumentsController(IMediator mediator) : ApiControllerBase(mediato
             new SendChatMessageCommand(CurrentUserId, id, request.Question, request.ResponseLanguage));
         return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
     }
+
+    /// <summary>Transcribe a short voice recording (the chat "ask out loud" mic button) to text
+    /// in the requested language. Unmetered — see TranscribeAudioCommand for why.</summary>
+    [HttpPost("transcribe")]
+    [RequestSizeLimit(8_000_000)]
+    public async Task<IActionResult> Transcribe(IFormFile audio, [FromQuery] Language language = Language.Hebrew)
+    {
+        if (audio is null || audio.Length == 0) return BadRequest(new { error = "No audio provided." });
+        await using var stream = audio.OpenReadStream();
+        var result = await Mediator.Send(new TranscribeAudioCommand(stream, audio.FileName, audio.ContentType, language));
+        return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
+    }
 }

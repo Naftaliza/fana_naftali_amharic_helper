@@ -1,4 +1,4 @@
-# Amharic Helper
+# Fana
 
 Help Amharic-speaking residents of Israel understand official Hebrew documents
 (government, bank, insurance, healthcare, municipality, employer). Upload a

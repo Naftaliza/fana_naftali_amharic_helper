@@ -1,6 +1,8 @@
 using AmharicHelper.Application.Common;
 using AmharicHelper.Application.DTOs;
+using AmharicHelper.Application.Features.Documents;
 using AmharicHelper.Application.Features.Trial;
+using AmharicHelper.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -46,6 +48,19 @@ public class TrialController(IMediator mediator) : ControllerBase
         if (!result.Success || result.Value is null)
             return BadRequest(new { error = result.Error });
         return File(result.Value.Content, result.Value.ContentType);
+    }
+
+    /// <summary>Transcribe a short voice recording without signing in — anonymous twin of
+    /// DocumentsController's endpoint, under the tighter per-IP `trial` rate limit. Unmetered,
+    /// same reasoning as the authenticated endpoint.</summary>
+    [HttpPost("transcribe")]
+    [RequestSizeLimit(8_000_000)]
+    public async Task<IActionResult> Transcribe(IFormFile audio, [FromQuery] Language language = Language.Hebrew)
+    {
+        if (audio is null || audio.Length == 0) return BadRequest(new { error = "No audio provided." });
+        await using var stream = audio.OpenReadStream();
+        var result = await mediator.Send(new TranscribeAudioCommand(stream, audio.FileName, audio.ContentType, language));
+        return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
     }
 
     private UsageSubject Subject()

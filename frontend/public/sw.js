@@ -5,8 +5,30 @@
 // - API calls always hit the network.
 // Bump CACHE on changes here so old caches are purged on activate.
 
-const CACHE = "amharic-helper-v2";
-const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
+const CACHE = "amharic-helper-v4";
+// caches.addAll() is all-or-nothing — a single 404 fails the entire install, so every path
+// below must exist at build time. The generated audio clips (public/audio/..., written by
+// scripts/generate-ui-audio.mjs) now do — precaching them here means /sample and the language
+// gate work fully offline from the very first cold load, not just after a first online visit.
+// If the generator is ever re-run and a clip goes missing again, drop it back out of this list
+// (the static-asset fetch handler below still lazy-caches on first successful request either way).
+const SHELL = [
+  "/",
+  "/sample",
+  "/manifest.webmanifest",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/flags/il.svg",
+  "/flags/et.svg",
+  "/flags/gb.svg",
+  "/audio/gate/he.mp3",
+  "/audio/gate/am.mp3",
+  "/audio/gate/en.mp3",
+  "/audio/sample/he/Full.mp3",
+  "/audio/sample/am/Full.mp3",
+  "/audio/sample/en/Full.mp3",
+  "/audio/sample/phrase-0.mp3",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -14,6 +14,7 @@ import { loc, type AnalysisResult } from "@/lib/types";
 import { AnalysisCard } from "@/components/AnalysisCard";
 import { AnalyzingState } from "@/components/AnalyzingState";
 import { CameraCapture } from "@/components/CameraCapture";
+import { HowItWorksStrip } from "@/components/HowItWorksStrip";
 import { OutOfCreditsPrompt, isOutOfCreditsError } from "@/components/OutOfCreditsPrompt";
 import { ShareButton } from "@/components/ShareButton";
 import { Button } from "@/components/ui/button";
@@ -135,6 +136,7 @@ export function UploadExperience() {
         <>
           <h1 className="bg-brand-gradient bg-clip-text text-4xl font-bold leading-tight text-transparent">{t("landing.headline")}</h1>
           <p className="text-lg text-gray-600 dark:text-gray-400">{t("landing.subheadline")}</p>
+          <HowItWorksStrip />
         </>
       )}
 
@@ -158,6 +160,15 @@ export function UploadExperience() {
       <p className="text-sm text-gray-500 dark:text-gray-400">{t("upload.formats")}</p>
       {!online && <p className="text-sm text-amber-700 dark:text-amber-400">{t("offline.uploadDisabled")}</p>}
       {error && <p role="alert" className="text-red-600">{error}</p>}
+
+      {/* Insurance for a first-time visitor: shows a real analysis with zero API call, zero
+          credits, zero network — see SampleView. Hidden once signed in or under tenant branding,
+          same as HomeExplainer, since a returning/tenant visitor already knows the product. */}
+      {!user && !organization && (
+        <Link href="/sample" className="text-sm font-medium text-brand underline-offset-4 hover:underline">
+          {t("landing.seeExample")}
+        </Link>
+      )}
 
       <input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden"
         onChange={(e) => handleFiles(Array.from(e.target.files ?? []))} />

@@ -16,7 +16,9 @@ const nextConfig = {
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
       {
-        source: "/:path*(svg|jpg|jpeg|png|webp|avif|ico|woff2)",
+        // mp3 added for the generated UI/sample audio clips (public/audio/...) — without this
+        // they'd revalidate on every load instead of being cached like every other static asset.
+        source: "/:path*(svg|jpg|jpeg|png|webp|avif|ico|woff2|mp3)",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
     ];

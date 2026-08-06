@@ -7,6 +7,8 @@ import { Gift, Wallet as WalletIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/api";
+import { FEATURE_WALLET } from "@/lib/featureFlags";
+import { useFeatureGate } from "@/lib/useFeatureGate";
 import type { WalletSummary } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,19 +30,25 @@ export default function WalletPage() {
   const { t, rtl } = useLanguage();
   const { user, loading } = useAuth();
   const router = useRouter();
+  const enabled = useFeatureGate(FEATURE_WALLET);
   const [summary, setSummary] = useState<WalletSummary | null>(null);
   const [error, setError] = useState(false);
   const dir = rtl ? "rtl" : "ltr";
 
   useEffect(() => {
+    // Skip entirely when the feature is off — otherwise this races useFeatureGate's own
+    // redirect for an anonymous visitor, and "must sign in first" (a real, always-reachable
+    // page) wins over "this feature doesn't exist right now", which defeats the point.
+    if (!enabled) return;
     if (!loading && !user) router.push("/login");
-  }, [loading, user, router]);
+  }, [enabled, loading, user, router]);
 
   useEffect(() => {
     if (!user) return;
     api.getWallet().then(setSummary).catch(() => setError(true));
   }, [user]);
 
+  if (!enabled) return null;
   if (!user) return <p className="text-gray-500 dark:text-gray-400">{t("common.loading")}</p>;
 
   return (

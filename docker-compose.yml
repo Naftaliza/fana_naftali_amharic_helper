@@ -59,6 +59,10 @@ services:
         # Left unset on purpose: lib/api.ts derives the API host from the page's own URL at
         # runtime, so the same build works from localhost, a LAN IP, or a devtunnels URL.
         NEXT_PUBLIC_API_URL: ""
+        # Feature flag: Wallet/credits/gifting UI, off by default — see
+        # frontend/lib/featureFlags.ts. Set FEATURE_WALLET=true in the root .env and rebuild
+        # (`docker compose up --build frontend`) to turn it back on.
+        NEXT_PUBLIC_FEATURE_WALLET: "${FEATURE_WALLET:-false}"
     depends_on:
       - api
     ports:

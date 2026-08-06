@@ -53,7 +53,7 @@ builder.Services.AddOutputCache(o =>
 });
 builder.Services.AddSwaggerGen(o =>
 {
-    o.SwaggerDoc("v1", new OpenApiInfo { Title = "Amharic Helper API", Version = "v1" });
+    o.SwaggerDoc("v1", new OpenApiInfo { Title = "Fana API", Version = "v1" });
     o.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -135,7 +135,7 @@ builder.Services.AddCors(o => o.AddPolicy(CorsPolicy, p =>
     if (builder.Environment.IsDevelopment())
     {
         // Local dev is reached from many hosts (localhost, phone over LAN, phone over a VS Code
-        // devtunnel with a new random ID each time) - pattern-match instead of requiring every
+        // h tidevtunnel with a new random ID eacme) - pattern-match instead of requiring every
         // one listed in Frontend:Origin, so switching between them needs no API restart.
         p.SetIsOriginAllowed(origin =>
             frontendOrigins.Contains(origin) ||

@@ -77,6 +77,16 @@ export interface Provider {
   blurb: LocalizedText;
 }
 
+// The exact Hebrew sentence to say at a counter or on the phone for a required action, plus
+// what it means in the reader's own language. `say` is deliberately a plain string, not
+// LocalizedText — it IS Hebrew by definition; localizing it would defeat the point (see
+// PhraseCard.tsx). Currently authored by hand only on the /sample fixture — real analyses
+// don't populate this yet (see the deferred backend-schema slice in the implementation plan).
+export interface HebrewPhrase {
+  say: string;
+  meaning: LocalizedText;
+}
+
 export interface AnalysisResult {
   summary: LocalizedText;
   documentType: LocalizedText;
@@ -84,7 +94,12 @@ export interface AnalysisResult {
   category?: number;
   urgencyLevel: UrgencyLevel;
   keyPoints: LocalizedText[];
-  requiredActions: { description: LocalizedText; isMandatory: boolean }[];
+  requiredActions: {
+    description: LocalizedText;
+    isMandatory: boolean;
+    hebrewPhrase?: HebrewPhrase;
+    contactPhone?: string | null;
+  }[];
   deadlines: { date: string | null; description: LocalizedText }[];
   explanation: LocalizedText;
 }
@@ -397,4 +412,12 @@ export interface SponsorshipSummary {
 export interface RedeemSponsorshipResult {
   creditsGranted: number;
   newBalance: number;
+}
+
+// A transcribed voice recording (the chat "ask out loud" mic button). Fills the chat input —
+// never auto-sent, since Amharic ASR can be imperfect and auto-sending would spend a real chat
+// credit on a question the user didn't ask.
+export interface Transcript {
+  text: string;
+  locale: string | null;
 }

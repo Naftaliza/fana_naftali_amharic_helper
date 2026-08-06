@@ -10,10 +10,12 @@ using AmharicHelper.Infrastructure.Processing;
 using AmharicHelper.Infrastructure.Repositories;
 using AmharicHelper.Infrastructure.Security;
 using AmharicHelper.Infrastructure.Storage;
+using AmharicHelper.Infrastructure.Stt;
 using AmharicHelper.Infrastructure.Tts;
 using AmharicHelper.Infrastructure.Wallet;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AmharicHelper.Infrastructure;
 
@@ -130,6 +132,18 @@ public static class DependencyInjection
             services.AddHttpClient<ITtsProvider, ElevenLabsTtsProvider>();
         else
             services.AddHttpClient<ITtsProvider, AzureTtsProvider>();
+
+        // Speech-to-text for the chat "ask out loud" mic button (voice input). Falls back to
+        // Tts's Azure key/region when Stt's own are unset — same underlying Azure Speech
+        // resource, so no separate Railway env vars are needed to turn this on.
+        services.AddOptions<SttOptions>()
+            .Bind(config.GetSection("Stt"))
+            .PostConfigure<IOptions<TtsOptions>>((s, tts) =>
+            {
+                if (string.IsNullOrWhiteSpace(s.AzureSpeechKey)) s.AzureSpeechKey = tts.Value.AzureSpeechKey;
+                if (string.IsNullOrWhiteSpace(s.AzureRegion)) s.AzureRegion = tts.Value.AzureRegion;
+            });
+        services.AddHttpClient<ISttProvider, AzureSttProvider>(c => c.Timeout = TimeSpan.FromSeconds(60));
 
         return services;
     }

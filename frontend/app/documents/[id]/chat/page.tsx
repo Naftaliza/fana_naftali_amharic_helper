@@ -8,6 +8,7 @@ import { useLanguage } from "@/lib/language-context";
 import { LANGUAGE_ENUM } from "@/lib/types";
 import type { ChatMessage } from "@/lib/types";
 import { OutOfCreditsPrompt, isOutOfCreditsError } from "@/components/OutOfCreditsPrompt";
+import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -20,6 +21,7 @@ export default function ChatPage() {
   const [busy, setBusy] = useState(false);
   const [outOfCredits, setOutOfCredits] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { api.chatHistory(id).then(setMessages).catch(() => {}); }, [id]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -66,7 +68,17 @@ export default function ChatPage() {
       </div>
 
       <form onSubmit={send} className="mt-3 flex gap-2">
-        <Input value={question} onChange={(e) => setQuestion(e.target.value)} aria-label={t("chat.placeholder")} placeholder={t("chat.placeholder")} />
+        <VoiceInputButton
+          language={language}
+          disabled={busy}
+          onTranscript={(text) => {
+            // Fills the box rather than sending — ASR on Amharic can be imperfect, and
+            // auto-sending would spend a real chat credit on a question the user didn't ask.
+            setQuestion((q) => (q ? `${q} ${text}` : text));
+            inputRef.current?.focus();
+          }}
+        />
+        <Input ref={inputRef} value={question} onChange={(e) => setQuestion(e.target.value)} aria-label={t("chat.placeholder")} placeholder={t("chat.placeholder")} />
         <Button type="submit" disabled={busy}><Send className="h-5 w-5" />{t("chat.send")}</Button>
       </form>
     </div>

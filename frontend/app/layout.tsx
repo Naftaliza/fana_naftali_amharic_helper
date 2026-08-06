@@ -16,6 +16,7 @@ import { LeadFeedbackPrompt } from "@/components/LeadFeedbackPrompt";
 import { SaveTrialAnalysisPrompt } from "@/components/SaveTrialAnalysisPrompt";
 import { RedeemPendingPrompt } from "@/components/RedeemPendingPrompt";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 // Runs before paint to set the theme + accessibility options + whether a language has already
 // been chosen, avoiding any flash. Without the 'lang-chosen' class here, a returning visitor
@@ -37,12 +38,28 @@ if(localStorage.getItem('lang'))d.classList.add('lang-chosen');
 const hebrew = Noto_Sans_Hebrew({ subsets: ["hebrew"], variable: "--font-noto", display: "swap" });
 const ethiopic = Noto_Sans_Ethiopic({ subsets: ["ethiopic"], weight: ["400", "500", "700"], variable: "--font-ethiopic", display: "swap" });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://fana.app";
+const DESCRIPTION = "פאנא · ፋና · Fana — understand Hebrew documents in Amharic and simple Hebrew.";
+
 export const metadata: Metadata = {
-  title: "Amharic Helper",
-  description: "Understand Hebrew documents in Amharic and simple Hebrew.",
+  metadataBase: new URL(SITE_URL),
+  title: "Fana · פאנא · ፋና",
+  description: DESCRIPTION,
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Amharic Helper" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Fana" },
   icons: { apple: "/icon-192.png" },
+  openGraph: {
+    title: "Fana",
+    description: DESCRIPTION,
+    type: "website",
+    locale: "he_IL",
+    alternateLocale: ["am_ET", "en_US"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Fana",
+    description: DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {
@@ -75,6 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <LeadFeedbackPrompt />
                   <SaveTrialAnalysisPrompt />
                   <RedeemPendingPrompt />
+                  <InstallPrompt />
                   <ServiceWorker />
                 </OnboardingProvider>
               </OrganizationProvider>

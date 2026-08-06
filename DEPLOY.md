@@ -1,4 +1,4 @@
-# Deployment Guide — Amharic Helper
+# Deployment Guide — Fana
 
 Two platforms: **Netlify** hosts the Next.js frontend; **Railway** hosts the .NET API
 and a managed **PostgreSQL** database (Netlify can't run .NET or a database). Branch: `fana_mvp`.
@@ -93,6 +93,9 @@ needs a storage account + credentials the user provides — out of scope here.
    base = `frontend`, build = `npm run build`, Node 20, `@netlify/plugin-nextjs`.
 2. Site **Environment variables**:
    - `NEXT_PUBLIC_API_URL = https://fananaftaliamharichelper-production.up.railway.app`
+   - `NEXT_PUBLIC_FEATURE_WALLET` — leave unset (defaults to hidden) until there's a real
+     self-serve credit story; set to `true` and trigger a new deploy to turn the Wallet/Gift UI
+     back on. See `frontend/lib/featureFlags.ts`.
 3. Deploy → note the Netlify URL (e.g. `https://<site>.netlify.app`).
 
 ## Wire CORS (chicken-and-egg)
