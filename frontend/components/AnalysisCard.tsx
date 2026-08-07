@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CalendarPlus, CheckSquare, Calendar, ListChecks, Volume2, Loader2, Play, Pause, RotateCcw } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/api";
-import { LANGUAGE_ENUM, URGENCY_ENUM, isRtl, loc, type AnalysisResult } from "@/lib/types";
+import { LANGUAGE_ENUM, URGENCY_ENUM, isRtl, loc, type AnalysisResult, type Language, type SpokenSectionKey } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ReferralBlock } from "@/components/ReferralBlock";
 import { SectionAudioButton } from "@/components/SectionAudioButton";
 import { isActionChecked, setActionChecked } from "@/lib/actionProgress";
 import { buildDeadlineIcs } from "@/lib/ics";
+import { markAnalysisSeen } from "@/lib/analysisSeen";
+import { PhraseCard } from "@/components/PhraseCard";
 
 // Index = the backend's UrgencyLevel int (Low=0 .. Critical=3). The API serializes enums as ints
 // on the wire, but AnalysisResult's type says string — tolerate both (see the same normalization,
@@ -27,10 +29,22 @@ export function AnalysisCard({
   analysis,
   documentId,
   trial = false,
+  audioSrcFor,
+  phraseAudioSrcFor,
 }: {
   analysis: AnalysisResult;
   documentId?: string;
   trial?: boolean;
+  // When provided, audio plays from a static file (public/audio/...) instead of hitting
+  // api.speech/api.trialSpeech — used by /sample so the demo works fully offline, no credits,
+  // no network. A null return means no clip was generated for that section; the caller handles
+  // the miss (the main player surfaces doc.speechError, SectionAudioButton hides itself).
+  audioSrcFor?: (section: SpokenSectionKey, language: Language) => string | null;
+  // Static audio for a required action's Hebrew phrase card, keyed by action index. Always the
+  // Hebrew voice — see HebrewPhrase in lib/types.ts. No real-analysis backend route exists for
+  // this yet (feature #4 is a hand-authored /sample-only slice); real analyses simply won't
+  // have `hebrewPhrase` set, so PhraseCard never renders for them.
+  phraseAudioSrcFor?: (actionIndex: number) => string | null;
 }) {
   const { t, language } = useLanguage();
   // Analysis content is shown in the chosen language; direction follows that language.
@@ -56,6 +70,12 @@ export function AnalysisCard({
     };
   }, []);
 
+  // Marks that the visitor has seen a completed analysis at least once — gates InstallPrompt,
+  // which only offers "Add to Home Screen" once the product's value has actually landed.
+  useEffect(() => {
+    markAnalysisSeen();
+  }, []);
+
   // The audio is generated for one language. When the user switches language,
   // discard it and reset to the "Listen" button so the next play re-fetches in
   // the new language (otherwise it keeps playing the previous language).
@@ -78,10 +98,17 @@ export function AnalysisCard({
     setError(null);
     setLoading(true);
     try {
-      const blob = trial || !documentId
-        ? await api.trialSpeech(analysis, LANGUAGE_ENUM[language])
-        : await api.speech(documentId, LANGUAGE_ENUM[language]);
-      const audio = new Audio(URL.createObjectURL(blob));
+      let audio: HTMLAudioElement;
+      if (audioSrcFor) {
+        const src = audioSrcFor("Full", language);
+        if (!src) throw new Error(t("doc.speechError"));
+        audio = new Audio(src);
+      } else {
+        const blob = trial || !documentId
+          ? await api.trialSpeech(analysis, LANGUAGE_ENUM[language])
+          : await api.speech(documentId, LANGUAGE_ENUM[language]);
+        audio = new Audio(URL.createObjectURL(blob));
+      }
       audioRef.current = audio;
       audio.onloadedmetadata = () => setDuration(audio.duration || 0);
       audio.ontimeupdate = () => setCurrent(audio.currentTime);
@@ -171,7 +198,7 @@ export function AnalysisCard({
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-1">
             <CardTitle>{t("doc.summary")}</CardTitle>
-            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Summary" label={t("doc.playSummary")} />
+            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Summary" label={t("doc.playSummary")} audioSrcFor={audioSrcFor} />
           </div>
           <span className={`rounded-full px-3 py-1 text-sm font-medium ${URGENCY_COLOR_BY_INDEX[urgencyIndex] ?? URGENCY_COLOR_BY_INDEX[0]}`}>
             {t("doc.urgency")}: {t(URGENCY_KEYS[urgencyIndex] ?? "urg.low")}
@@ -188,7 +215,7 @@ export function AnalysisCard({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">{t("doc.explanation")}</CardTitle>
-          <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Explanation" label={t("doc.playExplanation")} />
+          <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Explanation" label={t("doc.playExplanation")} audioSrcFor={audioSrcFor} />
         </CardHeader>
         <CardContent><p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300" dir={dir}>{loc(analysis.explanation, language)}</p></CardContent>
       </Card>
@@ -201,7 +228,7 @@ export function AnalysisCard({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg"><ListChecks className="h-5 w-5 text-brand" />{t("doc.keyPoints")}</CardTitle>
-            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="KeyPoints" label={t("doc.playKeyPoints")} />
+            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="KeyPoints" label={t("doc.playKeyPoints")} audioSrcFor={audioSrcFor} />
           </CardHeader>
           <CardContent>
             <ul className="list-inside list-disc space-y-1 text-gray-700 dark:text-gray-300" dir={dir}>
@@ -213,35 +240,47 @@ export function AnalysisCard({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg"><CheckSquare className="h-5 w-5 text-brand" />{t("doc.actions")}</CardTitle>
-            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Actions" label={t("doc.playActions")} />
+            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Actions" label={t("doc.playActions")} audioSrcFor={audioSrcFor} />
           </CardHeader>
           <CardContent>
             <ul className="space-y-2 text-gray-700 dark:text-gray-300" dir={dir}>
               {analysis.requiredActions.map((a, i) => {
                 const checked = documentId ? isActionChecked(documentId, i) : false;
                 return (
-                  <li key={i} className="flex items-start gap-2">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={!documentId}
-                      onChange={(e) => {
-                        if (!documentId) return;
-                        setActionChecked(documentId, i, e.target.checked);
-                        forceRerender((n) => n + 1);
-                      }}
-                      aria-label={loc(a.description, language)}
-                      className="mt-1 h-4 w-4 shrink-0 accent-brand"
-                    />
-                    {a.isMandatory && (
-                      <>
-                        <AlertTriangle aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-orange-500" />
-                        <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900/40 dark:text-orange-300">
-                          {t("doc.required")}
-                        </span>
-                      </>
+                  <li key={i}>
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={!documentId}
+                        onChange={(e) => {
+                          if (!documentId) return;
+                          setActionChecked(documentId, i, e.target.checked);
+                          forceRerender((n) => n + 1);
+                        }}
+                        aria-label={loc(a.description, language)}
+                        className="mt-1 h-4 w-4 shrink-0 accent-brand"
+                      />
+                      {a.isMandatory && (
+                        <>
+                          <AlertTriangle aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-orange-500" />
+                          <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900/40 dark:text-orange-300">
+                            {t("doc.required")}
+                          </span>
+                        </>
+                      )}
+                      <span className={checked ? "line-through opacity-60" : undefined}>{loc(a.description, language)}</span>
+                    </div>
+                    {/* Deferred: real analyses don't set hebrewPhrase yet — see phraseAudioSrcFor doc. */}
+                    {a.hebrewPhrase && (
+                      <div className="ps-6">
+                        <PhraseCard
+                          phrase={a.hebrewPhrase}
+                          contactPhone={a.contactPhone}
+                          audioSrc={phraseAudioSrcFor ? phraseAudioSrcFor(i) : undefined}
+                        />
+                      </div>
                     )}
-                    <span className={checked ? "line-through opacity-60" : undefined}>{loc(a.description, language)}</span>
                   </li>
                 );
               })}
@@ -253,7 +292,7 @@ export function AnalysisCard({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg"><Calendar className="h-5 w-5 text-brand" />{t("doc.deadlines")}</CardTitle>
-          <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Deadlines" label={t("doc.playDeadlines")} />
+          <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Deadlines" label={t("doc.playDeadlines")} audioSrcFor={audioSrcFor} />
         </CardHeader>
         <CardContent>
           {analysis.deadlines.length === 0 ? (

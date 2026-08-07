@@ -11,7 +11,9 @@ import type {
   EventDetail,
   Funnel,
   Invoice,
+  CreateSponsorshipResult,
   LeadsOverview,
+  LegalDocument,
   ManagedProvider,
   OrganizationBranding,
   OrganizationStats,
@@ -19,12 +21,32 @@ import type {
   PendingProvider,
   Provider,
   ProviderApplication,
+  RedeemSponsorshipResult,
+  SponsorshipSummary,
+  Transcript,
   UpdateOrganizationPayload,
   UpdateProvider,
   UploadDocumentResult,
+  WalletSummary,
 } from "@/lib/types";
+import { getDeviceId } from "@/lib/deviceId";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080";
+// In local Docker dev NEXT_PUBLIC_API_URL is left unset (see docker-compose.yml), so the API host
+// is derived from the page's own URL at runtime instead - works unchanged whether the page is
+// loaded via localhost, a LAN IP, or a VS Code devtunnels URL, with no rebuild to switch between
+// them. Netlify prod always sets the env var explicitly (the Railway URL), which wins here.
+function resolveApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window === "undefined") return "http://localhost:5080";
+  const { protocol, hostname } = window.location;
+  // devtunnels forwards each port to its own subdomain, e.g. "<id>-3001.<region>.devtunnels.ms" -
+  // the API's forwarded port shares the same <id>/<region>, only the port segment differs.
+  const tunnelMatch = hostname.match(/^(.+)-3001(\.[a-z0-9]+\.devtunnels\.ms)$/);
+  if (tunnelMatch) return `${protocol}//${tunnelMatch[1]}-5080${tunnelMatch[2]}`;
+  return `${protocol}//${hostname}:5080`;
+}
+
+const BASE = resolveApiBase();
 
 const TOKEN_KEY = "accessToken";
 const REFRESH_KEY = "refreshToken";
@@ -173,15 +195,20 @@ export const api = {
     request<DocumentSummary>("/api/documents/attach-trial", { method: "POST", body: JSON.stringify(analysis) }),
 
   // --- Anonymous trial (no auth, nothing saved) ---
+  // X-Device-Id lets the backend's UsageLedger meter this browser specifically (see
+  // lib/deviceId.ts) rather than falling back to a coarser per-IP subject shared by everyone
+  // behind the same NAT/carrier.
   trialAnalyze: (files: File[]) => {
     const form = new FormData();
     files.forEach((f) => form.append("files", f));
-    return request<AnalysisResult>("/api/trial/analyze", { method: "POST", body: form });
+    return request<AnalysisResult>("/api/trial/analyze", {
+      method: "POST", body: form, headers: { "X-Device-Id": getDeviceId() },
+    });
   },
   trialSpeech: async (analysis: AnalysisResult, language: number, section?: number): Promise<Blob> => {
     const res = await fetch(`${BASE}/api/trial/speech`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Device-Id": getDeviceId() },
       body: JSON.stringify({ analysis, language, section }),
     });
     if (!res.ok) {
@@ -321,4 +348,40 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ question, responseLanguage }),
     }),
+
+  // --- Voice input (speech-to-text for the chat "ask out loud" mic button). Deliberately
+  // unmetered on the backend — see TranscribeAudioCommand — so no credit-related error handling
+  // is needed here beyond the usual network/rate-limit codes request() already surfaces. ---
+  transcribe: (blob: Blob, language: number, fileName = "question.webm") => {
+    const form = new FormData();
+    form.append("audio", blob, fileName);
+    return request<Transcript>(`/api/documents/transcribe?language=${language}`, { method: "POST", body: form });
+  },
+  trialTranscribe: (blob: Blob, language: number, fileName = "question.webm") => {
+    const form = new FormData();
+    form.append("audio", blob, fileName);
+    return request<Transcript>(`/api/trial/transcribe?language=${language}`, {
+      method: "POST", body: form, headers: { "X-Device-Id": getDeviceId() },
+    });
+  },
+
+  // --- Wallet (server-side usage meter — replaces lib/trial.ts) ---
+  getWallet: () => request<WalletSummary>("/api/wallet"),
+
+  // --- Sponsorship: gift credits to someone else via a single-use redeem link ---
+  createSponsorship: (beneficiaryPhone: string, credits: number) =>
+    request<CreateSponsorshipResult>("/api/wallet/sponsor", {
+      method: "POST", body: JSON.stringify({ beneficiaryPhone, credits }),
+    }),
+  redeemSponsorship: (token: string) =>
+    request<RedeemSponsorshipResult>(`/api/wallet/redeem/${encodeURIComponent(token)}`, { method: "POST" }),
+  listSponsorships: () => request<SponsorshipSummary[]>("/api/wallet/sponsorships"),
+
+  // --- Admin: manually grant credits (no payment rail yet — see the plan) ---
+  adminGrantCredits: (body: { email?: string; phone?: string; credits: number; note: string }) =>
+    request<{ balance: number }>("/api/admin/wallet/grant", { method: "POST", body: JSON.stringify(body) }),
+
+  // --- Legal (Terms/Privacy — public, anonymous) ---
+  getLegalDocument: (kind: "terms" | "privacy", language: number) =>
+    request<LegalDocument>(`/api/legal/${kind}?language=${language}`),
 };

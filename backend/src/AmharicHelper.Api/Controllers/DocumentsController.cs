@@ -5,10 +5,12 @@ using AmharicHelper.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AmharicHelper.Api.Controllers;
 
 [Authorize]
+[EnableRateLimiting("documents")]
 public class DocumentsController(IMediator mediator) : ApiControllerBase(mediator)
 {
     /// <summary>
@@ -122,6 +124,18 @@ public class DocumentsController(IMediator mediator) : ApiControllerBase(mediato
     {
         var result = await Mediator.Send(
             new SendChatMessageCommand(CurrentUserId, id, request.Question, request.ResponseLanguage));
+        return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
+    }
+
+    /// <summary>Transcribe a short voice recording (the chat "ask out loud" mic button) to text
+    /// in the requested language. Unmetered — see TranscribeAudioCommand for why.</summary>
+    [HttpPost("transcribe")]
+    [RequestSizeLimit(8_000_000)]
+    public async Task<IActionResult> Transcribe(IFormFile audio, [FromQuery] Language language = Language.Hebrew)
+    {
+        if (audio is null || audio.Length == 0) return BadRequest(new { error = "No audio provided." });
+        await using var stream = audio.OpenReadStream();
+        var result = await Mediator.Send(new TranscribeAudioCommand(stream, audio.FileName, audio.ContentType, language));
         return result.Success ? Ok(result.Value) : BadRequest(new { error = result.Error });
     }
 }

@@ -33,13 +33,18 @@ public record SendChatMessageCommand(Guid UserId, Guid DocumentId, string Questi
 public class SendChatMessageHandler(
     IDocumentRepository documents,
     IChatMessageRepository messages,
-    IAiProvider ai) : IRequestHandler<SendChatMessageCommand, Result<ChatMessageDto>>
+    IAiProvider ai,
+    IWalletService wallet) : IRequestHandler<SendChatMessageCommand, Result<ChatMessageDto>>
 {
     public async Task<Result<ChatMessageDto>> Handle(SendChatMessageCommand cmd, CancellationToken ct)
     {
         var doc = await documents.GetByIdAsync(cmd.DocumentId, ct);
         if (doc is null || doc.UserId != cmd.UserId)
             return Result<ChatMessageDto>.Fail("Document not found.");
+
+        // Every chat turn is a fresh AI call (no cache), so charge before making it.
+        if (!await wallet.TryConsumeAsync(UsageSubject.ForUser(cmd.UserId), "chat", cmd.DocumentId, ct))
+            return Result<ChatMessageDto>.Fail(WalletErrors.OutOfCredits);
 
         var history = await messages.ListByDocumentAsync(cmd.DocumentId, ct);
 

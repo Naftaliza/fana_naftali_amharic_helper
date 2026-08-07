@@ -35,6 +35,8 @@ services:
       # Comma-separated emails that get admin access (provider review page).
       # Must match the email of a registered Fana account.
       Admin__Emails: "${ADMIN_EMAILS:-}"
+      # Dev-only origins beyond this list (LAN IPs, devtunnels URLs) are pattern-matched in
+      # Program.cs's CORS policy instead of needing to be enumerated here.
       Frontend__Origin: "http://localhost:3001"
       Email__Smtp__Host: "smtp.sendgrid.net"
       Email__Smtp__Port: "587"
@@ -45,6 +47,10 @@ services:
       # `docker compose down`/rebuilds locally, the same way pg-data already does for Postgres.
       # See DEPLOY.md "Uploaded files" for the equivalent Railway Volume in production.
       Storage__RootPath: "/data/uploads"
+      # Same root .env var as the frontend's NEXT_PUBLIC_FEATURE_WALLET below — one flag turns
+      # the Wallet/Gift/Redeem UI back on AND makes WalletService actually enforce credits
+      # (see FeatureFlagsOptions, WalletService.TryConsumeAsync). Off by default.
+      Features__Wallet: "${FEATURE_WALLET:-false}"
     ports:
       - "5080:8080"
     volumes:
@@ -54,7 +60,13 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_URL: "http://localhost:5080"
+        # Left unset on purpose: lib/api.ts derives the API host from the page's own URL at
+        # runtime, so the same build works from localhost, a LAN IP, or a devtunnels URL.
+        NEXT_PUBLIC_API_URL: ""
+        # Feature flag: Wallet/credits/gifting UI, off by default — see
+        # frontend/lib/featureFlags.ts. Set FEATURE_WALLET=true in the root .env and rebuild
+        # (`docker compose up --build frontend`) to turn it back on.
+        NEXT_PUBLIC_FEATURE_WALLET: "${FEATURE_WALLET:-false}"
     depends_on:
       - api
     ports:

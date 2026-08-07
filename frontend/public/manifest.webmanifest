@@ -1,13 +1,12 @@
 {
-  "name": "Amharic Helper",
-  "short_name": "Amharic Helper",
-  "description": "Understand official Hebrew documents in Amharic and simple Hebrew.",
+  "name": "Fana",
+  "short_name": "Fana",
+  "description": "פאנא · ፋና · Fana — understand official Hebrew documents in Amharic and simple Hebrew.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "dir": "rtl",
-  "lang": "he",
+  "dir": "auto",
   "background_color": "#f6f9ff",
   "theme_color": "#2563eb",
   "icons": [

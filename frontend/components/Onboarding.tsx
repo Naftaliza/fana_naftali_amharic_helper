@@ -6,6 +6,7 @@ import { useLanguage } from "@/lib/language-context";
 import { useAuth } from "@/lib/auth-context";
 import { hasSeenOnboarding, markOnboardingSeen } from "@/lib/onboarding";
 import { useOnboarding } from "@/lib/onboarding-context";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { Button } from "@/components/ui/button";
 
 const STEPS = [
@@ -45,6 +46,8 @@ export function Onboarding() {
     hide();
   };
 
+  const trapRef = useFocusTrap(open, close);
+
   if (!open) return null;
 
   const { icon: Icon, titleKey, bodyKey } = STEPS[step];
@@ -57,7 +60,7 @@ export function Onboarding() {
       aria-label={t(titleKey)}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
     >
-      <div dir={rtl ? "rtl" : "ltr"} className="relative w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-soft dark:bg-gray-900">
+      <div ref={trapRef} dir={rtl ? "rtl" : "ltr"} className="relative w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-soft dark:bg-gray-900">
         <button
           onClick={close}
           aria-label={t("onboarding.skip")}

@@ -95,6 +95,7 @@ public class AnalyzeDocumentHandler(
     IDocumentAnalysisRepository analyses,
     ITtsAudioCacheRepository ttsCache,
     IAiProvider ai,
+    IWalletService wallet,
     IEventTracker events) : IRequestHandler<AnalyzeDocumentCommand, Result<DocumentAnalysisResult>>
 {
     public async Task<Result<DocumentAnalysisResult>> Handle(AnalyzeDocumentCommand cmd, CancellationToken ct)
@@ -106,6 +107,12 @@ public class AnalyzeDocumentHandler(
             return Result<DocumentAnalysisResult>.Fail("Document is still being processed. Try again shortly.");
         if (doc.Status == DocumentProcessingStatus.Failed || string.IsNullOrWhiteSpace(doc.OcrText))
             return Result<DocumentAnalysisResult>.Fail(doc.ProcessingError ?? "Document has no extracted text to analyze.");
+
+        // Charged before the call, not after: a failed Sonnet call still costs tokens against the
+        // Anthropic key, and re-analyzing (this handler runs again) always makes a fresh paid call
+        // — there is no cache to check first, unlike SpeakDocumentHandler's TTS cache.
+        if (!await wallet.TryConsumeAsync(UsageSubject.ForUser(cmd.UserId), "analyze", doc.Id, ct))
+            return Result<DocumentAnalysisResult>.Fail(WalletErrors.OutOfCredits);
 
         DocumentAnalysisResult result;
         try

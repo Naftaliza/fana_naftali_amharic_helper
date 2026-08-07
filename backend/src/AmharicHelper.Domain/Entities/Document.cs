@@ -45,4 +45,10 @@ public class Document
     public string? ProcessingError { get; set; }
 
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>When RetentionSweepWorker may delete this document (uploaded page files + OCR
+    /// text are the sensitive payload — bank, medical, Bituach Leumi letters). Null means "keep
+    /// indefinitely" — reserved for a future per-document "pin this one" override; every document
+    /// gets a real value today (UploadedAt + 24 months), set at insert time.</summary>
+    public DateTime? RetainUntil { get; set; }
 }

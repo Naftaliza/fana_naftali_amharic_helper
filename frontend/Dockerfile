@@ -10,6 +10,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ARG NEXT_PUBLIC_API_URL=http://localhost:5080
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# Feature flag, off by default — see frontend/lib/featureFlags.ts. NEXT_PUBLIC_* vars are
+# inlined at build time, so this must be a build ARG, not a container-runtime env var.
+ARG NEXT_PUBLIC_FEATURE_WALLET=false
+ENV NEXT_PUBLIC_FEATURE_WALLET=$NEXT_PUBLIC_FEATURE_WALLET
 RUN npm run build
 
 FROM node:20-alpine AS runtime

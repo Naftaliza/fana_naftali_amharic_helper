@@ -1,4 +1,4 @@
-# Amharic Helper
+# Fana
 
 Help Amharic-speaking residents of Israel understand official Hebrew documents
 (government, bank, insurance, healthcare, municipality, employer). Upload a
@@ -77,7 +77,44 @@ can help with that document.
 > once the new account is verified, a prompt offers to attach it to the
 > account. A global offline banner, disabled upload/capture, and a
 > distinguished dashboard empty-vs-offline state cover the no-connectivity
-> case everywhere.
+> case everywhere. A server-side credit ledger (`UsageLedger`) now meters every
+> paid AI/TTS call — analysis, spoken audio (only on a cache miss; replaying
+> already-synthesized audio stays free), and chat — for authenticated users
+> and anonymous trial visitors alike, replacing a client-only `localStorage`
+> counter that any user could reset and that never covered the authenticated
+> analyze/chat endpoints at all. Every subject (a registered account, or an
+> anonymous device id / IP for the trial flow) gets a monthly free tier (3
+> credits), granted lazily on first use rather than at signup; consuming a
+> credit is serialized per subject with a Postgres advisory-lock transaction
+> so two simultaneous requests against a subject's last credit can't both
+> succeed. There's no payment rail yet — an admin grants credits manually
+> (`POST /api/admin/wallet/grant`, by email or by phone number) for the first
+> customers, sold out-of-band. Signed-in users see their balance and usage
+> history at `/wallet`; anyone hitting the limit sees a localized prompt
+> instead of a raw error code. `DocumentsController` also gained rate
+> limiting (30 req/min/user) as an abuse backstop underneath the ledger — it
+> previously had none at all, despite upload automatically triggering paid
+> OCR in the background. Alongside this, the app now has real Terms of
+> Service and Privacy Policy pages (`/terms`, `/privacy`, versioned in a
+> `LegalDocuments` table, trilingual) — previously the registration page told
+> users they "agree to our terms" with no such document anywhere — and every
+> uploaded document carries a `RetainUntil` date (24 months from upload by
+> default), swept and deleted by a background `RetentionSweepWorker` once it
+> passes. On top of the ledger, a sponsorship flow (`/gift`) answers the
+> product insight that the user and the payer are often different people: a
+> signed-in account can gift credits — debited from their own balance
+> immediately, never manufactured — to anyone via a one-time link
+> (`/redeem/{token}`), with no account required on the recipient's end until
+> they actually redeem it. The redeem token is hashed with plain SHA-256 (not
+> the PBKDF2 `IPasswordHasher` used for account passwords), since a 256-bit
+> random token can be looked up directly by its hash without needing a second
+> identifier the way a password reset link does. Redemption is race-safe via
+> a conditional `UPDATE ... WHERE RedeemedByUserId IS NULL` rather than a
+> lock, so two simultaneous attempts on the same link can't both succeed. If
+> the person opening the link isn't signed in yet — the common case, since a
+> gift is often someone's first-ever contact with Fana — the token is stashed
+> client-side and redeemed automatically the moment they finish registering
+> or logging in, wherever they land afterward.
 
 ![Sample generated invoice PDF, branded with the Fana logo and colors](docs/invoice-sample.png)
 
@@ -99,9 +136,12 @@ can help with that document.
 | Frontend  | Next.js 15 · TypeScript · Tailwind CSS · shadcn-style UI             |
 | Languages | Hebrew (default until chosen, RTL) · Amharic · English · a blocking first-run `LanguageGate` asks explicitly rather than guessing from `navigator.language` |
 | Hosting   | Netlify (frontend) · Railway (API + PostgreSQL, + a Volume for uploaded files — see `DEPLOY.md`) |
-| Hardening | Per-endpoint rate limiting (auth/trial/referrals) · CORS policy · PWA service worker · accessibility widget |
+| Hardening | Per-endpoint rate limiting (auth/trial/referrals/**documents**) · CORS policy · PWA service worker · accessibility widget |
 | Performance | Brotli/gzip response compression · output caching on the tenant-branding endpoint · indexed hot query paths (`Users.OrganizationId`, `DocumentAnalyses.CreatedAt`) · immutable-cached static assets and tree-shaken icon imports on the frontend |
 | Health    | `/health` runs a real Postgres connectivity check (`DatabaseHealthCheck`), not a static literal — returns 503 when the database is unreachable |
+| Wallet    | `IWalletService` → `WalletService` — an append-only `UsageLedger` (balance is always `SUM(Delta)`, never a mutable column) meters analyze/speech(on a cache miss)/chat for both authenticated users and anonymous trial visitors; `TryConsumeAsync` is serialized per subject via a Postgres advisory-lock transaction (`pg_advisory_xact_lock`) so two concurrent requests against a subject's last credit can't both succeed; a monthly free tier (3 credits) is granted lazily on first spend; admin-only manual grants (`POST /api/admin/wallet/grant`, by email or phone — no payment rail yet) |
+| Sponsorship | Gift credits to someone else (`/gift`) — `TryDebitForSponsorshipAsync` deducts from the sponsor's own balance at creation time (same advisory-lock pattern as `TryConsumeAsync`, but never triggers the free-tier grant), a one-time link is returned (raw token shown once, only its SHA-256 hash persisted), and redemption (`POST /api/wallet/redeem/{token}`) is race-safe via a conditional `UPDATE ... WHERE RedeemedByUserId IS NULL`. A visitor who isn't signed in yet has the token stashed client-side and redeemed automatically once they finish registering/logging in |
+| Legal     | Versioned Terms/Privacy documents (`LegalDocuments`, trilingual) served at `/terms` and `/privacy`; `ConsentRecords` for acceptance evidence; every `Document` carries a `RetainUntil` (24 months from upload by default), swept by a background `RetentionSweepWorker` |
 
 > **QuestPDF licensing note:** invoice PDFs are generated with QuestPDF's free
 > "Community" license, which applies only below a revenue threshold QuestPDF
@@ -127,6 +167,8 @@ Fana 2.0/
    ├─ app/                      # landing, login, register, check-email, verify-email,
    │                           #   forgot-password, reset-password, help (FAQ + replay onboarding),
    │                           #   dashboard, upload, documents/[id], documents/[id]/chat, profile,
+   │                           #   wallet (credit balance + usage history), gift (send credits),
+   │                           #   redeem/[token] (claim a gift link), terms, privacy,
    │                           #   partners (self-registration), admin/providers,
    │                           #   admin/organizations (B2G tenant console),
    │                           #   admin/analytics (funnel dashboard)
@@ -134,9 +176,14 @@ Fana 2.0/
    │                           #   DocumentPages (page thumbnails + zoom lightbox),
    │                           #   ReferralBlock, LeadFeedbackPrompt, ShareButton, Onboarding,
    │                           #   SectionAudioButton (per-card "read just this" playback),
+   │                           #   OutOfCreditsPrompt (shown wherever a metered call is refused),
+   │                           #   RedeemPendingPrompt (finishes a gift redemption stashed
+   │                           #   pre-auth, wherever the user lands after signing in),
    │                           #   LanguageGate, AccessibilityWidget, ServiceWorker, ui/
    ├─ lib/                      # api client, auth + language + organization + onboarding contexts,
-   │                           #   types, support (support-contact constant),
+   │                           #   types, support (support-contact constant), deviceId (anonymous
+   │                           #   trial metering — replaced the old client-only trial.ts counter),
+   │                           #   pendingRedeemToken (stash a gift token across the auth detour),
    │                           #   imageQuality (client-side blur/exposure check)
    ├─ i18n/                     # he / am / en dictionaries
    └─ jest.config.js, jest.setup.ts  # Jest + React Testing Library; *.test.ts(x) live in
@@ -144,21 +191,28 @@ Fana 2.0/
 ```
 
 The backend Application layer is organized by feature (`Auth`, `Documents`,
-`Chat`, `Trial`, `Partners`, `Referrals`, `Organizations`), each with its CQRS
-commands/queries.
+`Chat`, `Trial`, `Partners`, `Referrals`, `Organizations`, `Legal`, `Wallet`),
+each with its CQRS commands/queries.
 
 ### Database schema
 `Users` (with an optional `OrganizationId`), `RefreshTokens`, `Documents` (with
 `Status`/`ProcessedPages`/`TotalPages`/`SkippedPages`/`ProcessingError` for the
-background OCR pipeline, plus `PageContentTypes` alongside `PagePaths`),
+background OCR pipeline, `PageContentTypes` alongside `PagePaths`, and a
+`RetainUntil` retention date swept by `RetentionSweepWorker`),
 `DocumentAnalyses`, `ChatMessages`, `TtsAudioCache` (keyed per document,
 language, and `Section` — the whole walkthrough or one passage), `Providers`,
 `Leads` (with `Status` and `Helpful` columns for lead lifecycle + post-contact
 feedback), `Organizations` (B2B/B2G tenant branding), `Invoices` (persisted,
 immutable per-provider/month billing snapshots, unique on `(ProviderId,
 PeriodYear, PeriodMonth)`), `AnalyticsEvents` (minimal funnel instrumentation —
-event name + optional user + timestamp) (see
-`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`020`).
+event name + optional user + timestamp), `LegalDocuments` (versioned
+Terms/Privacy bodies, trilingual), `ConsentRecords` (acceptance evidence, by
+`UserId` or a hashed `ContactHash`), `UsageLedger` (append-only credit
+movements — see Wallet above; balance is always `SUM(Delta)`, never a mutable
+column), `Sponsorships` (gift credits — see Sponsorship above; `RedeemTokenHash`
+is a plain SHA-256, deliberately not the PBKDF2 `IPasswordHasher` used for
+account passwords) (see
+`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`023`).
 Migrations are idempotent PostgreSQL and run on API startup. Analysis text
 columns store JSON localized to `{ he, am, en }`.
 
@@ -166,13 +220,19 @@ columns store JSON localized to `{ he, am, en }`.
 - `POST /api/auth/register | login | refresh | forgot-password | reset-password | verify-email | resend-verification`
 - `GET  /api/users/me`, `GET /api/users/me/export` (GDPR Art. 15 data export — profile + every document/analysis/chat as JSON), `DELETE /api/users/me` (GDPR Art. 17 account erasure — irreversible)
 - `POST /api/documents` (upload — returns `202 Accepted` immediately; OCR runs in the background, see Document processing above), `GET /api/documents` (list, with each document's processing `Status` and upcoming `Deadlines`), `GET /api/documents/{id}` (poll for `Status`/`ProcessedPages`/`TotalPages`/`SkippedPages`/`ProcessingError` and, once ready, the analysis)
-- `POST /api/documents/{id}/analyze?category=`
+- `POST /api/documents/{id}/analyze?category=` — metered: fails with `OUT_OF_CREDITS` if the caller's `UsageLedger` balance can't cover it (see Wallet above)
 - `POST /api/documents/{id}/retry-ocr` (re-queue a `Failed` document for another OCR pass)
 - `POST /api/documents/attach-trial` (persist an anonymous trial analysis to the now-signed-in account)
 - `GET  /api/documents/{id}/pages/{index}` (raw file for one uploaded page — image or PDF — so the user can review what they photographed; client-cached, immutable once uploaded)
-- `GET  /api/documents/{id}/speech?language=&section=` (spoken audio, MP3 — `section` defaults to the full walkthrough; pass `Summary`/`Explanation`/`KeyPoints`/`Actions`/`Deadlines` for one card's passage)
-- `GET|POST /api/documents/{id}/chat`
-- `POST /api/trial/analyze`, `POST /api/trial/speech` (anonymous trial, nothing saved — still synchronous, capped at 5 pages; `speech` accepts the same optional `section`)
+- `GET  /api/documents/{id}/speech?language=&section=` (spoken audio, MP3 — `section` defaults to the full walkthrough; pass `Summary`/`Explanation`/`KeyPoints`/`Actions`/`Deadlines` for one card's passage; metered only on a `TtsAudioCache` miss — replaying already-synthesized audio is free)
+- `GET|POST /api/documents/{id}/chat` — `POST` is metered (every chat turn is a fresh AI call, no cache)
+- `POST /api/trial/analyze`, `POST /api/trial/speech` (anonymous trial, nothing saved — still synchronous, capped at 5 pages; `speech` accepts the same optional `section`; metered against a subject built from the `X-Device-Id` header, or a per-IP fallback if absent)
+- `GET  /api/wallet` (my credit balance + recent usage history — authenticated)
+- `POST /api/wallet/sponsor` (gift credits to someone else — debits the caller's own balance immediately, returns a one-time redeem link)
+- `POST /api/wallet/redeem/{token}` (redeem a gift link, crediting the caller's own account — race-safe via a conditional UPDATE)
+- `GET  /api/wallet/sponsorships` (my own gift history — sent links and whether each has been redeemed)
+- `POST /api/admin/wallet/grant` (manually grant credits by email or phone — admin only, no payment rail yet)
+- `GET  /api/legal/{kind}?language=` (Terms/Privacy document body in one language — anonymous, `kind` is `terms` or `privacy`)
 - `GET  /api/referrals?category=` (matched providers), `POST /api/referrals/{providerId}/lead` (log a contact) — anonymous, rate-limited
 - `POST /api/referrals/feedback/{refCode}` (post-contact "did this help?" signal) — anonymous, rate-limited
 - `POST /api/partners/apply` (business self-registration, anonymous, rate-limited)

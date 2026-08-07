@@ -1,2 +1,1 @@
-// TODO: replace with the real support contact before this ships to production.
-export const SUPPORT_EMAIL = "support@example.com";
+export const SUPPORT_EMAIL = "naftalizaro@gmail.com";

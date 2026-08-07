@@ -33,17 +33,30 @@ public class DocumentRepository(ISqlConnectionFactory factory) : IDocumentReposi
         return rows.Select(r => r.ToEntity()).ToList();
     }
 
+    public async Task<IReadOnlyList<Document>> ListExpiredAsync(DateTime nowUtc, int limit, CancellationToken ct = default)
+    {
+        using var conn = factory.Create();
+        var rows = await conn.QueryAsync<DocumentRow>(
+            "SELECT * FROM Documents WHERE RetainUntil IS NOT NULL AND RetainUntil <= @nowUtc ORDER BY RetainUntil LIMIT @limit",
+            new { nowUtc, limit });
+        return rows.Select(r => r.ToEntity()).ToList();
+    }
+
     public async Task AddAsync(Document document, CancellationToken ct = default)
     {
         using var conn = factory.Create();
+        // RetainUntil is computed here rather than left to the caller — every document gets a
+        // real retention date the moment it's created, same 24-month default the migration
+        // backfilled onto pre-existing rows (see 021_legal_consent.sql).
+        var retainUntil = document.RetainUntil ?? document.UploadedAt.AddMonths(24);
         await conn.ExecuteAsync(
             """
             INSERT INTO Documents
                 (Id, UserId, FileName, FilePath, ContentType, OcrText, PagePaths, PageContentTypes,
-                 Status, ProcessedPages, TotalPages, SkippedPages, ProcessingError, UploadedAt)
+                 Status, ProcessedPages, TotalPages, SkippedPages, ProcessingError, UploadedAt, RetainUntil)
             VALUES
                 (@Id, @UserId, @FileName, @FilePath, @ContentType, @OcrText, @PagePaths, @PageContentTypes,
-                 @Status, @ProcessedPages, @TotalPages, @SkippedPages, @ProcessingError, @UploadedAt)
+                 @Status, @ProcessedPages, @TotalPages, @SkippedPages, @ProcessingError, @UploadedAt, @RetainUntil)
             """,
             new
             {
@@ -60,7 +73,8 @@ public class DocumentRepository(ISqlConnectionFactory factory) : IDocumentReposi
                 document.TotalPages,
                 document.SkippedPages,
                 document.ProcessingError,
-                document.UploadedAt
+                document.UploadedAt,
+                RetainUntil = retainUntil
             });
     }
 
@@ -110,6 +124,7 @@ public class DocumentRepository(ISqlConnectionFactory factory) : IDocumentReposi
         public int SkippedPages { get; set; }
         public string? ProcessingError { get; set; }
         public DateTime UploadedAt { get; set; }
+        public DateTime? RetainUntil { get; set; }
 
         public Document ToEntity() => new()
         {
@@ -126,7 +141,8 @@ public class DocumentRepository(ISqlConnectionFactory factory) : IDocumentReposi
             TotalPages = TotalPages,
             SkippedPages = SkippedPages,
             ProcessingError = ProcessingError,
-            UploadedAt = UploadedAt
+            UploadedAt = UploadedAt,
+            RetainUntil = RetainUntil
         };
     }
 }

@@ -12,6 +12,7 @@ import { AnalyzingState } from "@/components/AnalyzingState";
 import { DocumentPages } from "@/components/DocumentPages";
 import { DocumentShareButton } from "@/components/DocumentShareButton";
 import { OcrFailedCard } from "@/components/OcrFailedCard";
+import { OutOfCreditsPrompt, isOutOfCreditsError } from "@/components/OutOfCreditsPrompt";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -28,6 +29,7 @@ export default function DocumentDetailPage() {
   const [doc, setDoc] = useState<DocumentDetail | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [outOfCredits, setOutOfCredits] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -70,7 +72,11 @@ export default function DocumentDetailPage() {
       const result = await api.analyze(id);
       setDoc((d) => (d ? { ...d, analysis: result } : d));
     } catch (err) {
-      setError((err as Error).message || t("doc.analyzeError"));
+      if (isOutOfCreditsError(err)) {
+        setOutOfCredits(true);
+      } else {
+        setError((err as Error).message || t("doc.analyzeError"));
+      }
     } finally {
       setAnalyzing(false);
     }
@@ -109,6 +115,7 @@ export default function DocumentDetailPage() {
   }, [id, retryKey]);
 
   if (!doc) return <p className="text-gray-500 dark:text-gray-400">{t("common.loading")}</p>;
+  if (outOfCredits) return <OutOfCreditsPrompt variant="authenticated" />;
 
   const ocrInProgress = doc.status === DOCUMENT_STATUS.Pending || doc.status === DOCUMENT_STATUS.Processing;
   const ocrFailed = doc.status === DOCUMENT_STATUS.Failed;

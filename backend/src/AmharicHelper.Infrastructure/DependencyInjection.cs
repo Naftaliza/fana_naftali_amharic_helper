@@ -10,9 +10,12 @@ using AmharicHelper.Infrastructure.Processing;
 using AmharicHelper.Infrastructure.Repositories;
 using AmharicHelper.Infrastructure.Security;
 using AmharicHelper.Infrastructure.Storage;
+using AmharicHelper.Infrastructure.Stt;
 using AmharicHelper.Infrastructure.Tts;
+using AmharicHelper.Infrastructure.Wallet;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AmharicHelper.Infrastructure;
 
@@ -41,6 +44,17 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IAnalyticsEventRepository, AnalyticsEventRepository>();
         services.AddScoped<IEventTracker, EventTracker>();
+        services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
+        services.AddScoped<IConsentRepository, ConsentRepository>();
+        services.AddScoped<ISponsorshipRepository, SponsorshipRepository>();
+
+        // Server-side usage meter (see WalletService) — replaces the old client-only
+        // frontend/lib/trial.ts localStorage counter and gates the paid AI/TTS calls behind a
+        // real, race-safe credit ledger rather than nothing at all. Enforcement itself is
+        // switched by Features:Wallet (see FeatureFlagsOptions) so it can ship dark alongside
+        // the frontend's NEXT_PUBLIC_FEATURE_WALLET flag.
+        services.Configure<FeatureFlagsOptions>(config.GetSection("Features"));
+        services.AddScoped<IWalletService, WalletService>();
 
         // Background OCR pipeline: upload persists pages + enqueues, DocumentProcessingWorker
         // dequeues and runs DocumentProcessor off the request thread (see plan). The queue is
@@ -50,6 +64,11 @@ public static class DependencyInjection
         services.AddSingleton<IDocumentProcessingQueue>(sp => sp.GetRequiredService<DocumentProcessingQueue>());
         services.AddScoped<DocumentProcessor>();
         services.AddHostedService<DocumentProcessingWorker>();
+
+        // Deletes documents past their RetainUntil date (see 021_legal_consent.sql) on a fixed
+        // interval — the app previously kept every uploaded page file (bank/medical/government
+        // letters) forever.
+        services.AddHostedService<RetentionSweepWorker>();
 
         // Provider invoicing: PDF generation (QuestPDF — Community license, revenue-capped; see
         // README) and outbound email, configured via Email:Smtp (reused for both senders below —
@@ -116,6 +135,18 @@ public static class DependencyInjection
             services.AddHttpClient<ITtsProvider, ElevenLabsTtsProvider>();
         else
             services.AddHttpClient<ITtsProvider, AzureTtsProvider>();
+
+        // Speech-to-text for the chat "ask out loud" mic button (voice input). Falls back to
+        // Tts's Azure key/region when Stt's own are unset — same underlying Azure Speech
+        // resource, so no separate Railway env vars are needed to turn this on.
+        services.AddOptions<SttOptions>()
+            .Bind(config.GetSection("Stt"))
+            .PostConfigure<IOptions<TtsOptions>>((s, tts) =>
+            {
+                if (string.IsNullOrWhiteSpace(s.AzureSpeechKey)) s.AzureSpeechKey = tts.Value.AzureSpeechKey;
+                if (string.IsNullOrWhiteSpace(s.AzureRegion)) s.AzureRegion = tts.Value.AzureRegion;
+            });
+        services.AddHttpClient<ISttProvider, AzureSttProvider>(c => c.Timeout = TimeSpan.FromSeconds(60));
 
         return services;
     }
