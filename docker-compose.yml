@@ -47,6 +47,10 @@ services:
       # `docker compose down`/rebuilds locally, the same way pg-data already does for Postgres.
       # See DEPLOY.md "Uploaded files" for the equivalent Railway Volume in production.
       Storage__RootPath: "/data/uploads"
+      # Same root .env var as the frontend's NEXT_PUBLIC_FEATURE_WALLET below — one flag turns
+      # the Wallet/Gift/Redeem UI back on AND makes WalletService actually enforce credits
+      # (see FeatureFlagsOptions, WalletService.TryConsumeAsync). Off by default.
+      Features__Wallet: "${FEATURE_WALLET:-false}"
     ports:
       - "5080:8080"
     volumes:

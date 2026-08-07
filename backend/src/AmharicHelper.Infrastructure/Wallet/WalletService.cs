@@ -5,6 +5,7 @@ using AmharicHelper.Domain.Entities;
 using AmharicHelper.Domain.Enums;
 using AmharicHelper.Infrastructure.Persistence;
 using Dapper;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace AmharicHelper.Infrastructure.Wallet;
@@ -19,7 +20,7 @@ namespace AmharicHelper.Infrastructure.Wallet;
 /// commits or rolls back, then sees the up-to-date balance. The lock is released automatically
 /// at transaction end — no separate unlock call, so it can't leak on an exception.
 /// </summary>
-public class WalletService(ISqlConnectionFactory factory) : IWalletService
+public class WalletService(ISqlConnectionFactory factory, IOptions<FeatureFlagsOptions> features) : IWalletService
 {
     private const string BalanceSql =
         "SELECT COALESCE(SUM(Delta), 0) FROM UsageLedger WHERE (@UserId::uuid IS NOT NULL AND UserId = @UserId) OR (@ContactHash IS NOT NULL AND ContactHash = @ContactHash)";
@@ -41,6 +42,11 @@ public class WalletService(ISqlConnectionFactory factory) : IWalletService
         UsageSubject subject, string operation, Guid? documentId = null, CancellationToken ct = default)
     {
         ValidateSubject(subject);
+
+        // Enforcement is off by default (Features:Wallet). Every caller — analyze, trial
+        // analyze/tts, document tts, chat — just gets "you have credit" and nothing is charged,
+        // matching today's production behavior until the flag is deliberately turned on.
+        if (!features.Value.Wallet) return true;
 
         using var conn = new NpgsqlConnection(factory.ConnectionString);
         await conn.OpenAsync(ct);

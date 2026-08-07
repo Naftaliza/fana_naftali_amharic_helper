@@ -50,7 +50,10 @@ public static class DependencyInjection
 
         // Server-side usage meter (see WalletService) — replaces the old client-only
         // frontend/lib/trial.ts localStorage counter and gates the paid AI/TTS calls behind a
-        // real, race-safe credit ledger rather than nothing at all.
+        // real, race-safe credit ledger rather than nothing at all. Enforcement itself is
+        // switched by Features:Wallet (see FeatureFlagsOptions) so it can ship dark alongside
+        // the frontend's NEXT_PUBLIC_FEATURE_WALLET flag.
+        services.Configure<FeatureFlagsOptions>(config.GetSection("Features"));
         services.AddScoped<IWalletService, WalletService>();
 
         // Background OCR pipeline: upload persists pages + enqueues, DocumentProcessingWorker

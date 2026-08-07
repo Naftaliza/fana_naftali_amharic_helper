@@ -75,6 +75,7 @@ needs a storage account + credentials the user provides — out of scope here.
   | `Frontend__Origin` | Netlify URL(s), comma-separated (see below) |
   | `Email__Smtp__Password` | SendGrid API key — sent as a Bearer token to SendGrid's HTTPS `/mail/send` API, **not** used for SMTP auth on Railway (see note below) |
   | `Email__Smtp__From` | a sender verified in SendGrid (Settings → Sender Authentication) |
+  | `Features__Wallet` | leave unset (defaults to `false` — credits are never enforced, matching today's behavior). Set to `true` **together with** Netlify's `NEXT_PUBLIC_FEATURE_WALLET` below to turn on both the Wallet/Gift/Redeem UI and real server-side credit enforcement — the two must move together, since the backend flag is what actually blocks a request when a subject is out of credits. See `FeatureFlagsOptions`, `WalletService.TryConsumeAsync`. |
 
   > **Why HTTPS, not SMTP**: Railway blocks outbound SMTP ports (25/465/587) on its network, so
   > `Email__Smtp__Host/Port/Username` (used only by the SMTP fallback) don't apply here — the
@@ -94,8 +95,10 @@ needs a storage account + credentials the user provides — out of scope here.
 2. Site **Environment variables**:
    - `NEXT_PUBLIC_API_URL = https://fananaftaliamharichelper-production.up.railway.app`
    - `NEXT_PUBLIC_FEATURE_WALLET` — leave unset (defaults to hidden) until there's a real
-     self-serve credit story; set to `true` and trigger a new deploy to turn the Wallet/Gift UI
-     back on. See `frontend/lib/featureFlags.ts`.
+     self-serve credit story; set to `true` **together with** Railway's `Features__Wallet` above
+     and trigger a new deploy to turn the Wallet/Gift UI back on. Setting only this one hides/shows
+     the UI but does not by itself change whether credits are enforced — that's the Railway flag.
+     See `frontend/lib/featureFlags.ts`.
 3. Deploy → note the Netlify URL (e.g. `https://<site>.netlify.app`).
 
 ## Wire CORS (chicken-and-egg)
