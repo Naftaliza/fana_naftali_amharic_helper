@@ -114,7 +114,27 @@ can help with that document.
 > the person opening the link isn't signed in yet — the common case, since a
 > gift is often someone's first-ever contact with Fana — the token is stashed
 > client-side and redeemed automatically the moment they finish registering
-> or logging in, wherever they land afterward.
+> or logging in, wherever they land afterward. The Wallet/Gift/Redeem UI and
+> the server-side credit enforcement it depends on are both hidden behind one
+> flag (`NEXT_PUBLIC_FEATURE_WALLET` frontend, `Features__Wallet` backend, off
+> by default) — there's no real payment rail yet, so in production today every
+> analyze/speech/chat call is unmetered rather than shipping a half-finished
+> credit story in front of users. The ledger code itself is untouched and
+> ready to enforce the moment the flag flips on. A voice-input option
+> (`AzureSttProvider`, Azure Fast Transcription) lets a user tap-to-record a
+> question on the chat page instead of typing — it only fills the question
+> box, never auto-sends, and is unmetered regardless of the wallet flag. For
+> investor/demo settings where the live AI pipeline might hiccup on stage, a
+> `/sample` page renders a hand-written, trilingual sample letter through the
+> real `AnalysisCard` component with zero API calls and zero credits, working
+> fully offline after one visit; it also carries a demo slice of Hebrew phrase
+> cards — the exact sentence to say at a counter or on the phone, spoken aloud
+> in Hebrew and explained in the reader's own language. Branding was unified
+> to "Fana" everywhere (previously split with "Amharic Helper" in places),
+> with a real Open Graph/Twitter share card, self-hosted flag icons (no more
+> third-party `flagcdn.com` call on the blocking first screen), an
+> Add-to-Home-Screen install prompt, and pre-generated spoken audio for the
+> language picker itself in all three languages.
 
 ![Sample generated invoice PDF, branded with the Fana logo and colors](docs/invoice-sample.png)
 
@@ -133,15 +153,17 @@ can help with that document.
 | Document processing | Upload persists every page and returns `202 Accepted` immediately; OCR then runs page-by-page in `DocumentProcessor`, driven by an in-memory queue + `DocumentProcessingWorker` background service (with startup reconciliation for anything left mid-job by a crash/redeploy). The client polls `GET /documents/{id}` (`Status`/`ProcessedPages`/`TotalPages`) instead of holding one long-lived request open |
 | Analytics | Minimal funnel instrumentation (`AnalyticsEvents`) — registered/verified/uploaded/analyzed counts, viewable via `GET /api/admin/analytics/funnel` (admin only) and on the `/admin/analytics` dashboard page (period selector: 7/30/90 days); each stage is clickable and drills into the individual events (`GET /api/admin/analytics/funnel/{eventName}`) — who (email, or "deleted account" if the user's since been removed) and when. Tracking failures never fail the request they're attached to |
 | TTS       | `ITtsProvider` → `AzureTtsProvider` (default) / ElevenLabs · full-walkthrough or single-section (`SpokenSection`: Summary/Explanation/KeyPoints/Actions/Deadlines) audio, cached per (document, language, section) |
+| Voice input | `ISttProvider` → `AzureSttProvider` (Azure Fast Transcription, `am-ET`/`he-IL`/`en-US` locale sets) · reuses the same Azure Speech key/region as TTS · unmetered, fills the question box rather than auto-sending |
+| Feature flags | `NEXT_PUBLIC_FEATURE_WALLET` (frontend, build-time) + `Features__Wallet` (backend, `FeatureFlagsOptions`) jointly gate the Wallet/Gift/Redeem UI and the credit enforcement in `WalletService.TryConsumeAsync`; both default off, so AI/TTS/chat calls are unmetered in production until deliberately turned on |
 | Frontend  | Next.js 15 · TypeScript · Tailwind CSS · shadcn-style UI             |
 | Languages | Hebrew (default until chosen, RTL) · Amharic · English · a blocking first-run `LanguageGate` asks explicitly rather than guessing from `navigator.language` |
 | Hosting   | Netlify (frontend) · Railway (API + PostgreSQL, + a Volume for uploaded files — see `DEPLOY.md`) |
 | Hardening | Per-endpoint rate limiting (auth/trial/referrals/**documents**) · CORS policy · PWA service worker · accessibility widget |
 | Performance | Brotli/gzip response compression · output caching on the tenant-branding endpoint · indexed hot query paths (`Users.OrganizationId`, `DocumentAnalyses.CreatedAt`) · immutable-cached static assets and tree-shaken icon imports on the frontend |
 | Health    | `/health` runs a real Postgres connectivity check (`DatabaseHealthCheck`), not a static literal — returns 503 when the database is unreachable |
-| Wallet    | `IWalletService` → `WalletService` — an append-only `UsageLedger` (balance is always `SUM(Delta)`, never a mutable column) meters analyze/speech(on a cache miss)/chat for both authenticated users and anonymous trial visitors; `TryConsumeAsync` is serialized per subject via a Postgres advisory-lock transaction (`pg_advisory_xact_lock`) so two concurrent requests against a subject's last credit can't both succeed; a monthly free tier (3 credits) is granted lazily on first spend; admin-only manual grants (`POST /api/admin/wallet/grant`, by email or phone — no payment rail yet) |
+| Wallet    | `IWalletService` → `WalletService` — an append-only `UsageLedger` (balance is always `SUM(Delta)`, never a mutable column) metering analyze/speech(on a cache miss)/chat for both authenticated users and anonymous trial visitors, gated live/dark by `Features__Wallet` (see Feature flags above — off by default, so nothing is charged today); `TryConsumeAsync` is serialized per subject via a Postgres advisory-lock transaction (`pg_advisory_xact_lock`) so two concurrent requests against a subject's last credit can't both succeed; a monthly free tier (3 credits) is granted lazily on first spend; admin-only manual grants (`POST /api/admin/wallet/grant`, by email or phone — no payment rail yet) |
 | Sponsorship | Gift credits to someone else (`/gift`) — `TryDebitForSponsorshipAsync` deducts from the sponsor's own balance at creation time (same advisory-lock pattern as `TryConsumeAsync`, but never triggers the free-tier grant), a one-time link is returned (raw token shown once, only its SHA-256 hash persisted), and redemption (`POST /api/wallet/redeem/{token}`) is race-safe via a conditional `UPDATE ... WHERE RedeemedByUserId IS NULL`. A visitor who isn't signed in yet has the token stashed client-side and redeemed automatically once they finish registering/logging in |
-| Legal     | Versioned Terms/Privacy documents (`LegalDocuments`, trilingual) served at `/terms` and `/privacy`; `ConsentRecords` for acceptance evidence; every `Document` carries a `RetainUntil` (24 months from upload by default), swept by a background `RetentionSweepWorker` |
+| Legal     | Versioned Terms/Privacy documents (`LegalDocuments`, trilingual) served at `/terms` and `/privacy` — v2 is a complete generic policy describing how Fana actually works (Anthropic OCR/analysis, Azure speech/voice, credits, 24-month retention), not attorney-reviewed for a specific jurisdiction; `ConsentRecords` for acceptance evidence; every `Document` carries a `RetainUntil` (24 months from upload by default), swept by a background `RetentionSweepWorker` |
 
 > **QuestPDF licensing note:** invoice PDFs are generated with QuestPDF's free
 > "Community" license, which applies only below a revenue threshold QuestPDF
@@ -167,11 +189,13 @@ Fana 2.0/
    ├─ app/                      # landing, login, register, check-email, verify-email,
    │                           #   forgot-password, reset-password, help (FAQ + replay onboarding),
    │                           #   dashboard, upload, documents/[id], documents/[id]/chat, profile,
+   │                           #   sample (offline demo fixture, zero API calls),
    │                           #   wallet (credit balance + usage history), gift (send credits),
    │                           #   redeem/[token] (claim a gift link), terms, privacy,
    │                           #   partners (self-registration), admin/providers,
    │                           #   admin/organizations (B2G tenant console),
-   │                           #   admin/analytics (funnel dashboard)
+   │                           #   admin/analytics (funnel dashboard),
+   │                           #   opengraph-image.tsx (Open Graph/Twitter share card)
    ├─ components/               # Navbar, UploadExperience, CameraCapture, AnalysisCard,
    │                           #   DocumentPages (page thumbnails + zoom lightbox),
    │                           #   ReferralBlock, LeadFeedbackPrompt, ShareButton, Onboarding,
@@ -179,12 +203,19 @@ Fana 2.0/
    │                           #   OutOfCreditsPrompt (shown wherever a metered call is refused),
    │                           #   RedeemPendingPrompt (finishes a gift redemption stashed
    │                           #   pre-auth, wherever the user lands after signing in),
-   │                           #   LanguageGate, AccessibilityWidget, ServiceWorker, ui/
+   │                           #   SampleView, PhraseCard (Hebrew phrase-to-say cards, demo slice),
+   │                           #   HomeExplainer, HowItWorksStrip (landing trust/explainer sections),
+   │                           #   InstallPrompt (Add-to-Home-Screen), LanguageGate,
+   │                           #   AccessibilityWidget, ServiceWorker, ui/
    ├─ lib/                      # api client, auth + language + organization + onboarding contexts,
    │                           #   types, support (support-contact constant), deviceId (anonymous
    │                           #   trial metering — replaced the old client-only trial.ts counter),
    │                           #   pendingRedeemToken (stash a gift token across the auth detour),
-   │                           #   imageQuality (client-side blur/exposure check)
+   │                           #   imageQuality (client-side blur/exposure check),
+   │                           #   featureFlags (NEXT_PUBLIC_FEATURE_WALLET, build-time)
+   ├─ scripts/generate-ui-audio.mjs  # generates the pre-recorded language-picker/phrase-card
+   │                                 #   audio clips via Azure TTS, content-hashed so re-runs
+   │                                 #   skip unchanged clips
    ├─ i18n/                     # he / am / en dictionaries
    └─ jest.config.js, jest.setup.ts  # Jest + React Testing Library; *.test.ts(x) live in
                                       #   __tests__/ folders next to the code they cover
@@ -212,7 +243,7 @@ movements — see Wallet above; balance is always `SUM(Delta)`, never a mutable
 column), `Sponsorships` (gift credits — see Sponsorship above; `RedeemTokenHash`
 is a plain SHA-256, deliberately not the PBKDF2 `IPasswordHasher` used for
 account passwords) (see
-`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`023`).
+`backend/src/AmharicHelper.Infrastructure/Migrations/`, numbered `001`–`024`).
 Migrations are idempotent PostgreSQL and run on API startup. Analysis text
 columns store JSON localized to `{ he, am, en }`.
 
@@ -226,6 +257,7 @@ columns store JSON localized to `{ he, am, en }`.
 - `GET  /api/documents/{id}/pages/{index}` (raw file for one uploaded page — image or PDF — so the user can review what they photographed; client-cached, immutable once uploaded)
 - `GET  /api/documents/{id}/speech?language=&section=` (spoken audio, MP3 — `section` defaults to the full walkthrough; pass `Summary`/`Explanation`/`KeyPoints`/`Actions`/`Deadlines` for one card's passage; metered only on a `TtsAudioCache` miss — replaying already-synthesized audio is free)
 - `GET|POST /api/documents/{id}/chat` — `POST` is metered (every chat turn is a fresh AI call, no cache)
+- `POST /api/documents/{id}/transcribe`, `POST /api/trial/transcribe` (voice-to-text for the chat/trial question box via Azure Fast Transcription — unmetered, never auto-sends)
 - `POST /api/trial/analyze`, `POST /api/trial/speech` (anonymous trial, nothing saved — still synchronous, capped at 5 pages; `speech` accepts the same optional `section`; metered against a subject built from the `X-Device-Id` header, or a per-IP fallback if absent)
 - `GET  /api/wallet` (my credit balance + recent usage history — authenticated)
 - `POST /api/wallet/sponsor` (gift credits to someone else — debits the caller's own balance immediately, returns a one-time redeem link)
@@ -303,6 +335,8 @@ variables (double-underscore syntax, e.g. `Ai__Provider`):
 | `Storage__RootPath`       | Where uploaded page files are written — point this at a mounted volume in production (see `DEPLOY.md`) or every redeploy loses uploaded files | `<app>/uploads` |
 | `Tts__Provider`           | `Azure` or `ElevenLabs`                            | `Azure`       |
 | `Tts__AzureSpeechKey` / `Tts__AzureRegion` | Azure Speech credentials          | empty         |
+| `Stt__AzureSpeechKey` / `Stt__AzureRegion` | Voice-input (transcribe) credentials — falls back to `Tts__AzureSpeechKey`/`Tts__AzureRegion` when blank, since it's the same Azure Speech resource | empty (inherits Tts) |
+| `Features__Wallet`        | Server-side credit enforcement switch — mirrors the frontend's `NEXT_PUBLIC_FEATURE_WALLET`; off means `WalletService.TryConsumeAsync` always succeeds without touching the database | `false` |
 | `Admin__Emails`           | CSV of emails granted admin access (provider/lead consoles) | empty |
 | `Auth__MaxFailedLoginAttempts` | Consecutive wrong-password attempts before an account is temporarily locked | `5` |
 | `Auth__LockoutMinutes`    | How long an account stays locked after hitting the attempt limit | `15` |
@@ -310,9 +344,10 @@ variables (double-underscore syntax, e.g. `Ai__Provider`):
 | `Email__Smtp__Password` / `From` | SendGrid API key / verified sender, used to email generated invoice PDFs and password-reset links; via `SENDGRID_API_KEY` / `SENDGRID_FROM_EMAIL` in Docker. `Host`/`Port`/`Username` only matter for the `Smtp` provider | empty |
 | `Company__SupportEmail`   | "Questions about this invoice?" contact shown on invoice PDFs; falls back to the first `Admin:Emails` entry if unset | empty |
 
-> **Frontend support contact:** `frontend/lib/support.ts` exports `SUPPORT_EMAIL`,
-> shown as a mailto link on the `/help` page. It's a placeholder — replace it
-> with the real support address before shipping the Help page to production.
+> **Support contact:** `frontend/lib/support.ts` exports `SUPPORT_EMAIL` (shown
+> as a mailto link on the `/help` page) and the backend's `Company__SupportEmail`
+> (shown on invoice PDFs, falling back to the first `Admin:Emails` entry if
+> unset) are both set to the real address.
 
 ## Deployment
 
