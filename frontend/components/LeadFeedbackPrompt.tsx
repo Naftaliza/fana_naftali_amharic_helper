@@ -55,7 +55,8 @@ export function LeadFeedbackPrompt() {
   return (
     <div
       dir={rtl ? "rtl" : "ltr"}
-      className="pb-safe fixed inset-x-4 bottom-4 z-50 mx-auto max-w-sm sm:inset-x-auto sm:end-4"
+      data-a11y-fixed
+      className="pb-safe fixed inset-x-4 bottom-20 z-50 mx-auto max-w-sm sm:inset-x-auto sm:end-4 md:bottom-4"
     >
       <Card className="shadow-soft">
         <CardContent className="relative py-4">

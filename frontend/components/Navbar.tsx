@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Menu, X, Check, LayoutDashboard, User, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, HelpCircle, ShieldCheck, Building2, BarChart3, Wallet, ScrollText, Gift } from "lucide-react";
+import { FileText, Menu, X, Check, LogOut, LogIn, UserPlus, Sun, Moon, Globe, Briefcase, ShieldCheck, Building2, BarChart3, Wallet, ScrollText, Gift } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useLanguage } from "@/lib/language-context";
 import { useOrganization } from "@/lib/organization-context";
@@ -50,12 +50,17 @@ export function Navbar() {
   return (
     <header data-print-hide className="pt-safe sticky top-0 z-40 border-b border-gray-100 bg-white/85 backdrop-blur dark:border-gray-800 dark:bg-gray-900/85">
       <nav aria-label={t("app.name")} className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2 text-lg font-bold text-brand">
+        {/* The logo used to always link to "/" — the anonymous trial uploader — which threw a
+            signed-in user out of their own workspace on every click. Rather than pick a single
+            new destination, it's now a plain brand mark: Dashboard and Upload are both one tap
+            away in BottomNav below, so the logo doesn't need to double as a link to either. */}
+        <div className="flex items-center gap-2 text-lg font-bold text-brand">
           {organization ? (
             // Tenant-branded: the institution's own identity leads, with a small
             // "powered by" mark — the engine underneath stays Fana's, not the tenant's.
             <>
               <span
+                data-org-badge
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-extrabold text-white"
                 style={{ background: "linear-gradient(135deg, var(--org-primary), var(--org-accent))" }}
                 aria-hidden="true"
@@ -64,7 +69,9 @@ export function Navbar() {
               </span>
               <span className="flex flex-col leading-tight">
                 <span className="text-base">{organization.name}</span>
-                <span className="text-[10px] font-normal text-gray-400 dark:text-gray-500">{t("org.poweredBy")}</span>
+                {/* text-[0.625rem] (not a bare px value) so this still grows with the
+                    accessibility widget's text-size control, which scales html { font-size }. */}
+                <span className="text-[0.625rem] font-normal text-gray-400 dark:text-gray-500">{t("org.poweredBy")}</span>
               </span>
             </>
           ) : (
@@ -75,7 +82,7 @@ export function Navbar() {
               <span>{t("app.name")}</span>
             </>
           )}
-        </Link>
+        </div>
 
         <div className="flex items-center gap-2">
           {/* Language picker */}
@@ -96,6 +103,7 @@ export function Navbar() {
                 type="button"
                 aria-hidden="true"
                 tabIndex={-1}
+                data-a11y-fixed
                 onClick={() => setLangOpen(false)}
                 className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] animate-fade-in"
               />
@@ -138,6 +146,7 @@ export function Navbar() {
                 type="button"
                 aria-hidden="true"
                 tabIndex={-1}
+                data-a11y-fixed
                 onClick={() => setOpen(false)}
                 className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] animate-fade-in"
               />
@@ -145,30 +154,11 @@ export function Navbar() {
 
             {open && (
               <div className="absolute end-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-soft dark:border-gray-800 dark:bg-gray-900">
-                {/* Account / navigation */}
-                {user ? (
-                  <>
-                    <Link href="/dashboard" className={itemClass}>
-                      <LayoutDashboard className="h-5 w-5 text-brand" />{t("nav.dashboard")}
-                    </Link>
-                    {FEATURE_WALLET && (
-                      <Link href="/wallet" className={itemClass}>
-                        <Wallet className="h-5 w-5 text-brand" />{t("nav.wallet")}
-                      </Link>
-                    )}
-                    {FEATURE_WALLET && (
-                      <Link href="/gift" className={itemClass}>
-                        <Gift className="h-5 w-5 text-brand" />{t("nav.gift")}
-                      </Link>
-                    )}
-                    <Link href="/profile" className={itemClass}>
-                      <User className="h-5 w-5 text-brand" />{t("nav.profile")}
-                    </Link>
-                    <button onClick={() => { setOpen(false); logout(); }} className={`${itemClass} text-red-600`}>
-                      <LogOut className="h-5 w-5" />{t("nav.logout")}
-                    </button>
-                  </>
-                ) : (
+                {/* Dashboard, Upload, Help and Profile now live in the bottom/top tab bar
+                    (BottomNav) — kept here would just be the same destination reachable two
+                    ways. What's left is account actions and things that were never tab
+                    destinations to begin with: wallet/gift, business signup, legal, admin. */}
+                {!user && (
                   <>
                     <Link href="/login" className={itemClass}>
                       <LogIn className="h-5 w-5 text-brand" />{t("nav.login")}
@@ -176,17 +166,25 @@ export function Navbar() {
                     <Link href="/register" className={itemClass}>
                       <UserPlus className="h-5 w-5 text-brand" />{t("nav.register")}
                     </Link>
+                    <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                   </>
                 )}
 
-                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+                {FEATURE_WALLET && user && (
+                  <>
+                    <Link href="/wallet" className={itemClass}>
+                      <Wallet className="h-5 w-5 text-brand" />{t("nav.wallet")}
+                    </Link>
+                    <Link href="/gift" className={itemClass}>
+                      <Gift className="h-5 w-5 text-brand" />{t("nav.gift")}
+                    </Link>
+                    <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+                  </>
+                )}
 
                 {/* For businesses — public referral signup */}
                 <Link href="/partners" className={itemClass}>
                   <Briefcase className="h-5 w-5 text-brand" />{t("nav.partners")}
-                </Link>
-                <Link href="/help" className={itemClass}>
-                  <HelpCircle className="h-5 w-5 text-brand" />{t("nav.help")}
                 </Link>
                 {user?.isAdmin && (
                   <Link href="/admin/providers" className={itemClass}>
@@ -224,6 +222,15 @@ export function Navbar() {
                   </span>
                   <span className="text-sm text-gray-400">{theme === "dark" ? t("theme.dark") : t("theme.light")}</span>
                 </button>
+
+                {user && (
+                  <>
+                    <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+                    <button onClick={() => { setOpen(false); logout(); }} className={`${itemClass} text-red-600`}>
+                      <LogOut className="h-5 w-5" />{t("nav.logout")}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

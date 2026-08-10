@@ -5,6 +5,7 @@ import { FileText } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/lib/language-context";
 import { LANGUAGE_ENUM } from "@/lib/types";
+import { BackLink } from "@/components/BackLink";
 
 export default function TermsPage() {
   const { t, language, rtl } = useLanguage();
@@ -22,6 +23,7 @@ export default function TermsPage() {
 
   return (
     <div className="mx-auto max-w-2xl pt-6" dir={dir}>
+      <BackLink href="/" />
       <div className="mb-6 flex items-center gap-3">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-gradient text-white">
           <FileText className="h-6 w-6" />

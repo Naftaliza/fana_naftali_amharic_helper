@@ -6,6 +6,8 @@ import { AuthProvider } from "@/lib/auth-context";
 import { OrganizationProvider } from "@/lib/organization-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { Navbar } from "@/components/Navbar";
+import { BottomNav } from "@/components/BottomNav";
+import { RouteAnnouncer } from "@/components/RouteAnnouncer";
 import { SkipLink } from "@/components/SkipLink";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import { AccessibilityWidget } from "@/components/AccessibilityWidget";
@@ -83,9 +85,28 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <OrganizationProvider>
                 <OnboardingProvider>
                   <SkipLink />
-                  <Navbar />
-                  <OfflineBanner />
-                  <main id="main" className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+                  {/* BottomNav is always position:fixed (bottom on mobile, top-under-Navbar on
+                      desktop — see the component), so unlike Navbar/main it doesn't need to sit
+                      in document flow, and unlike the other fixed overlays below it doesn't
+                      need data-a11y-scope's content to be its sibling either. It's rendered here
+                      only for code-adjacency to Navbar; fixed positioning makes its actual DOM
+                      placement irrelevant. */}
+                  <BottomNav />
+                  {/* data-a11y-scope: the grayscale filter (globals.css) applies here, not on
+                      <html>/<body> — a filtered element becomes the containing block for its
+                      position:fixed descendants, which would silently reposition every fixed
+                      overlay below (LanguageGate, Onboarding, the prompts, BottomNav above)
+                      relative to this box instead of the viewport. Keeping those overlays as
+                      siblings, outside this div, is what avoids that; each grays itself out
+                      individually via data-a11y-fixed instead. */}
+                  <div data-a11y-scope>
+                    <Navbar />
+                    <OfflineBanner />
+                    {/* pb-24 clears the fixed bottom tab bar on mobile; pt-24 on desktop clears
+                        BottomNav's fixed top-under-Navbar row instead — so the last (and first)
+                        element of every page stays reachable instead of sitting behind either. */}
+                    <main id="main" className="mx-auto max-w-6xl px-4 pb-24 pt-8 md:pb-8 md:pt-24">{children}</main>
+                  </div>
                   <AccessibilityWidget />
                   <LanguageGate />
                   <Onboarding />
@@ -93,6 +114,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <SaveTrialAnalysisPrompt />
                   <RedeemPendingPrompt />
                   <InstallPrompt />
+                  <RouteAnnouncer />
                   <ServiceWorker />
                 </OnboardingProvider>
               </OrganizationProvider>

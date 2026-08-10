@@ -99,7 +99,9 @@ export function SectionAudioButton({
       disabled={loading}
       aria-label={label}
       title={label}
-      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-700 ${
+      // h-11 w-11 (44px) — WCAG 2.5.5 target size; was h-8 w-8 (32px), the smaller of the two
+      // undersized controls flagged on this screen (the other is the action checkbox).
+      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-700 ${
         error ? "text-red-500" : "text-gray-400 hover:text-brand"
       }`}
     >

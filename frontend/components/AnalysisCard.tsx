@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CalendarPlus, CheckSquare, Calendar, ListChecks, Volume2, Loader2, Play, Pause, RotateCcw } from "lucide-react";
+import { AlertTriangle, CalendarPlus, ChevronDown, CheckSquare, Calendar, ListChecks, Volume2, Loader2, Play, Pause, RotateCcw } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/api";
-import { LANGUAGE_ENUM, URGENCY_ENUM, isRtl, loc, type AnalysisResult, type Language, type SpokenSectionKey } from "@/lib/types";
+import { LANGUAGE_ENUM, urgencyIndexOf, isRtl, loc, type AnalysisResult, type Language, type SpokenSectionKey } from "@/lib/types";
+import { daysUntil } from "@/lib/deadlines";
+import { getSectionOverride, setSectionOverride, type CollapsibleSection } from "@/lib/sectionExpand";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { AnalysisVerdict } from "@/components/AnalysisVerdict";
 import { ReferralBlock } from "@/components/ReferralBlock";
 import { SectionAudioButton } from "@/components/SectionAudioButton";
 import { isActionChecked, setActionChecked } from "@/lib/actionProgress";
@@ -14,16 +17,77 @@ import { buildDeadlineIcs } from "@/lib/ics";
 import { markAnalysisSeen } from "@/lib/analysisSeen";
 import { PhraseCard } from "@/components/PhraseCard";
 
-// Index = the backend's UrgencyLevel int (Low=0 .. Critical=3). The API serializes enums as ints
-// on the wire, but AnalysisResult's type says string — tolerate both (see the same normalization,
-// and why, in ReferralBlock.tsx).
-const URGENCY_COLOR_BY_INDEX = [
-  "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
-  "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-  "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-];
 const URGENCY_KEYS = ["urg.low", "urg.medium", "urg.high", "urg.critical"];
+// Matches the --urgency-*-fg/bg custom properties in globals.css — see the design-tokens
+// section there for why this reads a CSS variable instead of a literal Tailwind color class:
+// a11y-contrast redefines these once, centrally, instead of needing its own selector for every
+// place a color like this is used (which is exactly how the old bg-green-100/text-green-800-style
+// classes here went untouched by high-contrast mode before).
+const URGENCY_VAR_BY_INDEX = ["low", "medium", "high", "critical"];
+
+/**
+ * A collapsed-by-default section (Key points / Actions / Deadlines) that expands on tap, or
+ * automatically when `autoExpand` says its content is high-stakes (a mandatory action, a near
+ * deadline) — see the two call sites below for the actual rules. A manual toggle always wins
+ * over the auto rule afterward, persisted per document via lib/sectionExpand.ts.
+ */
+function useSectionExpanded(documentId: string | undefined, section: CollapsibleSection, autoExpand: boolean) {
+  const [expanded, setExpanded] = useState(autoExpand);
+
+  useEffect(() => {
+    const override = documentId ? getSectionOverride(documentId, section) : undefined;
+    setExpanded(override ?? autoExpand);
+    // Only re-run when the document/section identity changes or the auto rule's own inputs
+    // change — not on every render, or a manual collapse would immediately get overwritten.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentId, section, autoExpand]);
+
+  const toggle = () => {
+    setExpanded((prev) => {
+      const next = !prev;
+      if (documentId) setSectionOverride(documentId, section, next);
+      return next;
+    });
+  };
+
+  return [expanded, toggle] as const;
+}
+
+function SectionToggleHeader({
+  icon: Icon,
+  title,
+  count,
+  expanded,
+  onToggle,
+  audioButton,
+}: {
+  icon: typeof ListChecks;
+  title: string;
+  count: number;
+  expanded: boolean;
+  onToggle: () => void;
+  audioButton: React.ReactNode;
+}) {
+  const { t } = useLanguage();
+  return (
+    <CardHeader className="flex flex-row items-center justify-between">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        aria-label={`${title} · ${count} — ${expanded ? t("doc.collapse") : t("doc.expand")}`}
+        className="flex min-h-11 flex-1 items-center gap-2 text-start"
+      >
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Icon className="h-5 w-5 text-brand" aria-hidden="true" />
+          {title} <span className="text-base font-normal text-gray-400">· {count}</span>
+        </CardTitle>
+        <ChevronDown aria-hidden="true" className={`h-5 w-5 shrink-0 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      {audioButton}
+    </CardHeader>
+  );
+}
 
 export function AnalysisCard({
   analysis,
@@ -49,8 +113,7 @@ export function AnalysisCard({
   const { t, language } = useLanguage();
   // Analysis content is shown in the chosen language; direction follows that language.
   const dir = isRtl(language) ? "rtl" : "ltr";
-  const urgencyIndex =
-    typeof analysis.urgencyLevel === "number" ? analysis.urgencyLevel : URGENCY_ENUM[analysis.urgencyLevel] ?? 0;
+  const urgencyIndex = urgencyIndexOf(analysis.urgencyLevel);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);   // audio fetched & loaded
@@ -61,6 +124,24 @@ export function AnalysisCard({
   // isActionChecked reads localStorage directly (not React state) so it survives remounts across
   // page navigations; toggling calls setActionChecked then forces a re-render to reflect it.
   const [, forceRerender] = useState(0);
+
+  const mandatoryCount = analysis.requiredActions.filter((a) => a.isMandatory).length;
+  const nearestDeadlineDays = analysis.deadlines
+    .filter((d): d is { date: string; description: typeof d.description } => !!d.date)
+    .reduce<number | null>((min, d) => {
+      const n = daysUntil(d.date);
+      return min === null || n < min ? n : min;
+    }, null);
+
+  // Disclosure rules (see the implementation plan): Summary/Explanation never collapse. The
+  // three list sections default collapsed, except when their own content is high-stakes enough
+  // that hiding it by default would be the wrong call — a mandatory action, or a deadline within
+  // a week (including one already overdue).
+  const [keyPointsExpanded, toggleKeyPoints] = useSectionExpanded(documentId, "KeyPoints", false);
+  const [actionsExpanded, toggleActions] = useSectionExpanded(documentId, "Actions", mandatoryCount > 0);
+  const [deadlinesExpanded, toggleDeadlines] = useSectionExpanded(
+    documentId, "Deadlines", nearestDeadlineDays !== null && nearestDeadlineDays <= 7
+  );
 
   // Stop and release any audio when the component unmounts.
   useEffect(() => {
@@ -154,8 +235,10 @@ export function AnalysisCard({
 
   return (
     <div className="grid animate-fade-in-up gap-4">
-      {/* Sticky so the audio control stays reachable while scrolling the result. */}
-      <div data-print-hide className="sticky top-20 z-30 flex flex-col gap-1">
+      {/* Sticky so the audio control stays reachable while scrolling the result. md:top-32
+          (not top-20) on desktop, where BottomNav now adds a second fixed row under Navbar —
+          top-20 alone would put this player right underneath it. */}
+      <div data-print-hide className="sticky top-20 z-30 flex flex-col gap-1 md:top-32">
         {!ready ? (
           <Button onClick={start} disabled={loading} className="self-start shadow-soft">
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Volume2 className="h-5 w-5" />}
@@ -170,7 +253,7 @@ export function AnalysisCard({
               className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               <RotateCcw className="h-5 w-5" />
-              <span className="absolute text-[8px] font-bold">5</span>
+              <span className="absolute text-[0.5rem] font-bold">5</span>
             </button>
             <button
               onClick={togglePlay}
@@ -194,13 +277,25 @@ export function AnalysisCard({
         )}
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       </div>
+
+      {/* Answers "what is this / must I act / by when" before any of the cards below — see the
+          implementation plan. Pure re-ranking of the same AnalysisResult, not a new data source. */}
+      <AnalysisVerdict analysis={analysis} />
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-1">
             <CardTitle>{t("doc.summary")}</CardTitle>
             <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Summary" label={t("doc.playSummary")} audioSrcFor={audioSrcFor} />
           </div>
-          <span className={`rounded-full px-3 py-1 text-sm font-medium ${URGENCY_COLOR_BY_INDEX[urgencyIndex] ?? URGENCY_COLOR_BY_INDEX[0]}`}>
+          <span
+            className="rounded-full border px-3 py-1 text-sm font-medium"
+            style={{
+              color: `var(--urgency-${URGENCY_VAR_BY_INDEX[urgencyIndex]}-fg)`,
+              background: `var(--urgency-${URGENCY_VAR_BY_INDEX[urgencyIndex]}-bg)`,
+              borderColor: `var(--urgency-${URGENCY_VAR_BY_INDEX[urgencyIndex]}-border)`,
+            }}
+          >
             {t("doc.urgency")}: {t(URGENCY_KEYS[urgencyIndex] ?? "urg.low")}
           </span>
         </CardHeader>
@@ -217,31 +312,43 @@ export function AnalysisCard({
           <CardTitle className="text-lg">{t("doc.explanation")}</CardTitle>
           <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Explanation" label={t("doc.playExplanation")} audioSrcFor={audioSrcFor} />
         </CardHeader>
-        <CardContent><p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300" dir={dir}>{loc(analysis.explanation, language)}</p></CardContent>
+        <CardContent className="space-y-3" dir={dir}>
+          {/* Chunked into paragraphs instead of one whitespace-pre-wrap block, so a long
+              explanation reads as separated thoughts rather than a wall of text. */}
+          {loc(analysis.explanation, language).split(/\n{2,}/).map((para, i) => (
+            <p key={i} className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{para}</p>
+          ))}
+        </CardContent>
       </Card>
 
-      {/* Sponsored referrals — placed high (right under the summary/explanation) so users see the
-          offer to get help while the document's urgency is fresh. Renders nothing when none match. */}
-      <ReferralBlock analysis={analysis} documentId={documentId} />
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg"><ListChecks className="h-5 w-5 text-brand" />{t("doc.keyPoints")}</CardTitle>
-            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="KeyPoints" label={t("doc.playKeyPoints")} audioSrcFor={audioSrcFor} />
-          </CardHeader>
+      <Card>
+        <SectionToggleHeader
+          icon={ListChecks}
+          title={t("doc.keyPoints")}
+          count={analysis.keyPoints.length}
+          expanded={keyPointsExpanded}
+          onToggle={toggleKeyPoints}
+          audioButton={<SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="KeyPoints" label={t("doc.playKeyPoints")} audioSrcFor={audioSrcFor} />}
+        />
+        {keyPointsExpanded && (
           <CardContent>
             <ul className="list-inside list-disc space-y-1 text-gray-700 dark:text-gray-300" dir={dir}>
               {analysis.keyPoints.map((p, i) => <li key={i}>{loc(p, language)}</li>)}
             </ul>
           </CardContent>
-        </Card>
+        )}
+      </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg"><CheckSquare className="h-5 w-5 text-brand" />{t("doc.actions")}</CardTitle>
-            <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Actions" label={t("doc.playActions")} audioSrcFor={audioSrcFor} />
-          </CardHeader>
+      <Card>
+        <SectionToggleHeader
+          icon={CheckSquare}
+          title={t("doc.actions")}
+          count={analysis.requiredActions.length}
+          expanded={actionsExpanded}
+          onToggle={toggleActions}
+          audioButton={<SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Actions" label={t("doc.playActions")} audioSrcFor={audioSrcFor} />}
+        />
+        {actionsExpanded && (
           <CardContent>
             <ul className="space-y-2 text-gray-700 dark:text-gray-300" dir={dir}>
               {analysis.requiredActions.map((a, i) => {
@@ -249,22 +356,38 @@ export function AnalysisCard({
                 return (
                   <li key={i}>
                     <div className="flex items-start gap-2">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={!documentId}
-                        onChange={(e) => {
-                          if (!documentId) return;
-                          setActionChecked(documentId, i, e.target.checked);
-                          forceRerender((n) => n + 1);
-                        }}
-                        aria-label={loc(a.description, language)}
-                        className="mt-1 h-4 w-4 shrink-0 accent-brand"
-                      />
+                      {/* The visible box stays 16px (unaffected layout footprint), but its hit
+                          area is a full 44px square (WCAG 2.5.5) via an absolutely-positioned
+                          invisible <label> — position:absolute keeps it out of flow, so it
+                          can't shift the AlertTriangle/text siblings, even though it visually
+                          overlaps a few px into them. */}
+                      <span className="relative mt-0.5 inline-block h-4 w-4 shrink-0">
+                        <input
+                          id={`action-${documentId ?? "trial"}-${i}`}
+                          type="checkbox"
+                          checked={checked}
+                          disabled={!documentId}
+                          onChange={(e) => {
+                            if (!documentId) return;
+                            setActionChecked(documentId, i, e.target.checked);
+                            forceRerender((n) => n + 1);
+                          }}
+                          aria-label={loc(a.description, language)}
+                          className="h-4 w-4 accent-brand"
+                        />
+                        <label
+                          htmlFor={`action-${documentId ?? "trial"}-${i}`}
+                          aria-hidden="true"
+                          className="absolute -inset-3.5 cursor-pointer"
+                        />
+                      </span>
                       {a.isMandatory && (
                         <>
                           <AlertTriangle aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-orange-500" />
-                          <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900/40 dark:text-orange-300">
+                          <span
+                            className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
+                            style={{ color: "var(--mandatory-fg)", background: "var(--mandatory-bg)" }}
+                          >
                             {t("doc.required")}
                           </span>
                         </>
@@ -286,39 +409,51 @@ export function AnalysisCard({
               })}
             </ul>
           </CardContent>
-        </Card>
-      </div>
+        )}
+      </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg"><Calendar className="h-5 w-5 text-brand" />{t("doc.deadlines")}</CardTitle>
-          <SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Deadlines" label={t("doc.playDeadlines")} audioSrcFor={audioSrcFor} />
-        </CardHeader>
-        <CardContent>
-          {analysis.deadlines.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400">—</p>
-          ) : (
-            <ul className="space-y-2 text-gray-700 dark:text-gray-300" dir={dir}>
-              {analysis.deadlines.map((d, i) => (
-                <li key={i} className="flex flex-wrap items-center gap-2">
-                  <span>
-                    {d.date ? <strong>{new Date(d.date).toLocaleDateString()}</strong> : null} {loc(d.description, language)}
-                  </span>
-                  {d.date && (
-                    <a
-                      href={URL.createObjectURL(buildDeadlineIcs({ date: d.date, description: loc(d.description, language), documentName: t("app.name") }))}
-                      download={`deadline-${i}.ics`}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
-                    >
-                      <CalendarPlus className="h-4 w-4" />{t("doc.addToCalendar")}
-                    </a>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
+        <SectionToggleHeader
+          icon={Calendar}
+          title={t("doc.deadlines")}
+          count={analysis.deadlines.length}
+          expanded={deadlinesExpanded}
+          onToggle={toggleDeadlines}
+          audioButton={<SectionAudioButton analysis={analysis} documentId={documentId} trial={trial} section="Deadlines" label={t("doc.playDeadlines")} audioSrcFor={audioSrcFor} />}
+        />
+        {deadlinesExpanded && (
+          <CardContent>
+            {analysis.deadlines.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400">—</p>
+            ) : (
+              <ul className="space-y-2 text-gray-700 dark:text-gray-300" dir={dir}>
+                {analysis.deadlines.map((d, i) => (
+                  <li key={i} className="flex flex-wrap items-center gap-2">
+                    <span>
+                      {d.date ? <strong>{new Date(d.date).toLocaleDateString()}</strong> : null} {loc(d.description, language)}
+                    </span>
+                    {d.date && (
+                      <a
+                        href={URL.createObjectURL(buildDeadlineIcs({ date: d.date, description: loc(d.description, language), documentName: t("app.name") }))}
+                        download={`deadline-${i}.ics`}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
+                      >
+                        <CalendarPlus className="h-4 w-4" />{t("doc.addToCalendar")}
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        )}
       </Card>
+
+      {/* Sponsored referrals — now below the analysis's own content rather than sandwiched
+          between Explanation and Key points, where it read as part of Fana's own findings. The
+          card's brand-tinted chrome plus the "Sponsored" eyebrow (see ReferralBlock) are the
+          boundary; renders nothing when no providers match. */}
+      <ReferralBlock analysis={analysis} documentId={documentId} />
     </div>
   );
 }

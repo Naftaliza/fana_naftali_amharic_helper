@@ -31,6 +31,7 @@ export function InstallPrompt() {
     <div
       dir={rtl ? "rtl" : "ltr"}
       data-print-hide
+      data-a11y-fixed
       className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-gray-100 bg-white/95 p-4 shadow-soft backdrop-blur dark:border-gray-800 dark:bg-gray-900/95"
     >
       <div className="mx-auto flex max-w-xl items-center gap-3">

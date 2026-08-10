@@ -5,6 +5,7 @@ import { CheckCircle2, Users, BadgeDollarSign, MessageSquare } from "lucide-reac
 import { api } from "@/lib/api";
 import { useLanguage } from "@/lib/language-context";
 import { DOCUMENT_CATEGORY } from "@/lib/types";
+import { BackLink } from "@/components/BackLink";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,6 +76,7 @@ export default function PartnersPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 pt-6" dir={dir}>
+      <BackLink href="/" />
       <header className="space-y-3 text-center">
         <h1 className="bg-brand-gradient bg-clip-text text-3xl font-bold leading-tight text-transparent sm:text-4xl">
           {t("partners.headline")}

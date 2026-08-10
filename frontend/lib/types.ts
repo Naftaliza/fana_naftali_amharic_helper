@@ -66,6 +66,13 @@ export const DOCUMENT_CATEGORY = {
 // Urgency string → backend enum int (the wire uses ints, like ChatMessage.role).
 export const URGENCY_ENUM: Record<UrgencyLevel, number> = { Low: 0, Medium: 1, High: 2, Critical: 3 };
 
+// The API serializes enums as ints on the wire, but AnalysisResult['urgencyLevel'] types it as a
+// string — tolerate both instead of duplicating this normalization in every component that reads
+// urgency (AnalysisCard, AnalysisVerdict, ReferralBlock all needed it independently before this).
+export function urgencyIndexOf(urgencyLevel: UrgencyLevel | number): number {
+  return typeof urgencyLevel === "number" ? urgencyLevel : URGENCY_ENUM[urgencyLevel] ?? 0;
+}
+
 // A vetted professional shown as a sponsored referral.
 export interface Provider {
   id: string;

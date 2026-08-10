@@ -183,6 +183,7 @@ export function CameraCapture({
       role="dialog"
       aria-modal="true"
       aria-label={t("upload.takePhoto")}
+      data-a11y-fixed
       className="pt-safe pb-safe fixed inset-0 z-50 flex flex-col bg-black"
     >
       {/* Top bar */}

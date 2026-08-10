@@ -9,6 +9,7 @@ import { LANGUAGE_ENUM } from "@/lib/types";
 import type { ChatMessage } from "@/lib/types";
 import { OutOfCreditsPrompt, isOutOfCreditsError } from "@/components/OutOfCreditsPrompt";
 import { VoiceInputButton } from "@/components/VoiceInputButton";
+import { BackLink } from "@/components/BackLink";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -50,7 +51,10 @@ export default function ChatPage() {
   if (outOfCredits) return <OutOfCreditsPrompt variant="authenticated" />;
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-11rem)] max-w-2xl flex-col sm:h-[calc(100dvh-9rem)]">
+    <div className="mx-auto flex h-[calc(100dvh-14rem)] max-w-2xl flex-col sm:h-[calc(100dvh-12rem)]">
+      {/* Before this, asking a question had no way back to the document at all — grep for
+          Link|href across this file used to return nothing. */}
+      <BackLink href={`/documents/${id}`} label={t("doc.backToDocument")} />
       <h1 className="mb-4 text-2xl font-bold">{t("doc.chat")}</h1>
 
       <div className="flex-1 space-y-3 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">

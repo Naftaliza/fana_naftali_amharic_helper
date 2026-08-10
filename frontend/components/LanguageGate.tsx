@@ -73,6 +73,7 @@ export function LanguageGate() {
   return (
     <div
       data-language-gate
+      data-a11y-fixed
       role="dialog"
       aria-modal="true"
       aria-label="בחרו שפה · ቋንቋ ይምረጡ · Choose your language"

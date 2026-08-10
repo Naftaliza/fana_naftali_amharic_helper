@@ -13,6 +13,34 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* ===== Design tokens ===== */
+/* Urgency-pill and mandatory-action-chip colors as custom properties, not raw Tailwind classes,
+   so a11y-contrast (below) has one place to override them instead of an ever-growing list of
+   Tailwind selectors that silently misses whatever's added next. Hue is kept distinct per level
+   even under contrast mode — the urgency itself is information, not just decoration — but every
+   combination is tuned for a solid contrast ratio against its own background. */
+:root {
+  --urgency-low-bg: #dcfce7; --urgency-low-fg: #166534; --urgency-low-border: transparent;
+  --urgency-medium-bg: #fef9c3; --urgency-medium-fg: #854d0e; --urgency-medium-border: transparent;
+  --urgency-high-bg: #ffedd5; --urgency-high-fg: #9a3412; --urgency-high-border: transparent;
+  --urgency-critical-bg: #fee2e2; --urgency-critical-fg: #991b1b; --urgency-critical-border: transparent;
+  --mandatory-bg: #ffedd5; --mandatory-fg: #9a3412;
+}
+html.dark {
+  --urgency-low-bg: rgba(20, 83, 45, 0.4); --urgency-low-fg: #86efac;
+  --urgency-medium-bg: rgba(113, 63, 18, 0.4); --urgency-medium-fg: #fde047;
+  --urgency-high-bg: rgba(124, 45, 18, 0.4); --urgency-high-fg: #fdba74;
+  --urgency-critical-bg: rgba(127, 29, 29, 0.4); --urgency-critical-fg: #fca5a5;
+  --mandatory-bg: rgba(124, 45, 18, 0.4); --mandatory-fg: #fdba74;
+}
+html.a11y-contrast {
+  --urgency-low-bg: #ffffff; --urgency-low-fg: #14532d; --urgency-low-border: #14532d;
+  --urgency-medium-bg: #ffffff; --urgency-medium-fg: #78350f; --urgency-medium-border: #78350f;
+  --urgency-high-bg: #ffffff; --urgency-high-fg: #7c2d12; --urgency-high-border: #7c2d12;
+  --urgency-critical-bg: #ffffff; --urgency-critical-fg: #7f1d1d; --urgency-critical-border: #7f1d1d;
+  --mandatory-bg: #ffffff; --mandatory-fg: #7c2d12;
+}
+
 /* Never scroll sideways. On mobile (especially RTL) a stray wide element would otherwise
    push the right-anchored content off-screen; nothing in the app scrolls horizontally. */
 html,
@@ -40,6 +68,15 @@ html.dark body {
 body {
   font-size: 1.05rem;
   line-height: 1.65;
+}
+
+/* Ethiopic fidel carries more per-glyph detail than Hebrew or Latin and needs a larger size and
+   looser leading to be equally readable at the same visual weight — this is the audience the
+   product is for, not an edge case. language-context.tsx already sets documentElement.lang on
+   every language switch, so this needs no extra plumbing. */
+html[lang="am"] body {
+  font-size: 1.15rem;
+  line-height: 1.8;
 }
 
 /* Safe-area helpers for notch / home indicator on mobile. */
@@ -87,8 +124,19 @@ textarea:focus-visible,
 
 /* ===== Accessibility widget options ===== */
 
-/* Grayscale the whole page. */
-html.a11y-grayscale { filter: grayscale(100%); }
+/* Grayscale. NOT a plain `filter` on <html> — a non-none `filter` makes its element the
+   containing block for `position: fixed`/`absolute` descendants (same rule `transform` follows),
+   so every fixed overlay (LanguageGate, Onboarding, the bottom nav, toast prompts, this widget
+   itself) would silently stop being positioned against the viewport and jump to wherever the
+   filtered ancestor's box happens to be. Fix: filter only a wrapper that does NOT contain those
+   overlays (`[data-a11y-scope]`, wrapped around Navbar+OfflineBanner+main in layout.tsx), and
+   filter each fixed overlay's own root directly (`[data-a11y-fixed]`, added on that element
+   itself) — filtering an element doesn't change ITS OWN position, only its descendants'
+   containing block, so this grays them out without moving them. */
+html.a11y-grayscale [data-a11y-scope],
+html.a11y-grayscale [data-a11y-fixed] {
+  filter: grayscale(100%);
+}
 
 /* Highlight all links so they stand out. */
 html.a11y-highlight-links a {
@@ -118,15 +166,31 @@ html.a11y-contrast .bg-white,
 html.a11y-contrast .dark\:bg-gray-900,
 html.a11y-contrast .dark\:bg-gray-800 { background: #ffffff !important; }
 html.a11y-contrast [class*="border-gray-"] { border-color: #000000 !important; }
+/* The urgency pill and mandatory-action chip read their color from the tokens above, which
+   a11y-contrast already redefines — nothing extra needed here. What DOES need an explicit rule
+   is the tenant/brand gradient headline (bg-clip-text + text-transparent): without one, forcing
+   a solid background on it would leave the text literally invisible, since the text's own color
+   is transparent by design and only the (now-flattened) gradient was ever showing through it. */
+html.a11y-contrast .bg-clip-text.text-transparent {
+  background: none !important;
+  -webkit-text-fill-color: #06357a !important;
+  color: #06357a !important;
+}
+html.a11y-contrast [data-org-badge] { background: #06357a !important; }
 
-/* OpenDyslexic font (loaded from CDN; falls back to the normal stack if unavailable). */
+/* Reading-comfort font (self-hosted under public/fonts — no third-party request on the critical
+   path, matching the flag SVGs). Restricted to Latin via unicode-range: OpenDyslexic has no
+   Hebrew or Ethiopic glyphs, so without this the control would silently do nothing for the two
+   scripts this app exists for. Outside that range the browser falls through to var(--font-sans)
+   (Noto Hebrew/Ethiopic), so Hebrew and Amharic text keeps its real typeface. */
 @font-face {
-  font-family: "OpenDyslexic";
+  font-family: "ReadingComfort";
   font-display: swap;
-  src: url("https://cdn.jsdelivr.net/npm/@fontsource/opendyslexic/files/opendyslexic-latin-400-normal.woff2") format("woff2");
+  src: url("/fonts/opendyslexic-400.woff2") format("woff2");
+  unicode-range: U+0000-024F, U+0300-036F, U+2000-206F, U+2070-209F, U+20A0-20CF;
 }
 html.a11y-dyslexia,
-html.a11y-dyslexia * { font-family: "OpenDyslexic", var(--font-sans) !important; }
+html.a11y-dyslexia * { font-family: "ReadingComfort", var(--font-sans) !important; }
 
 /* Respect reduced-motion preferences. */
 @media (prefers-reduced-motion: reduce) {

@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { FEATURE_WALLET } from "@/lib/featureFlags";
 import { useFeatureGate } from "@/lib/useFeatureGate";
 import type { WalletSummary } from "@/lib/types";
+import { BackLink } from "@/components/BackLink";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -53,6 +54,7 @@ export default function WalletPage() {
 
   return (
     <div className="mx-auto max-w-2xl pt-6" dir={dir}>
+      <BackLink href="/dashboard" />
       <div className="mb-6 flex items-center gap-3">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-gradient text-white">
           <WalletIcon className="h-6 w-6" />

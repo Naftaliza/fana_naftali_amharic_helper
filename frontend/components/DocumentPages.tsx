@@ -106,6 +106,7 @@ export function DocumentPages({ documentId, totalPages }: { documentId: string; 
           role="dialog"
           aria-modal="true"
           aria-label={`${t("doc.pageLabel")} ${openIndex + 1}`}
+          data-a11y-fixed
           className="fixed inset-0 z-50 flex flex-col bg-black/95"
         >
           <div className="flex items-center justify-between p-4">

@@ -58,6 +58,7 @@ export function Onboarding() {
       role="dialog"
       aria-modal="true"
       aria-label={t(titleKey)}
+      data-a11y-fixed
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
     >
       <div ref={trapRef} dir={rtl ? "rtl" : "ltr"} className="relative w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-soft dark:bg-gray-900">

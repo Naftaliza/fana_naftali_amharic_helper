@@ -72,7 +72,14 @@ export function AccessibilityWidget() {
   ];
 
   return (
-    <div ref={ref} data-print-hide className="pb-safe fixed bottom-4 end-4 z-50 flex flex-col items-end gap-3">
+    <div
+      ref={ref}
+      data-print-hide
+      data-a11y-fixed
+      // bottom-20 clears the new fixed bottom tab bar on mobile (BottomNav); back to bottom-4 on
+      // desktop, where that bar moved to the top instead.
+      className="pb-safe fixed bottom-20 end-4 z-50 flex flex-col items-end gap-3 md:bottom-4"
+    >
       {open && (
         <div
           role="dialog"

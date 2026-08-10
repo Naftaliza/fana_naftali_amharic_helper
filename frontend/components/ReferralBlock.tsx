@@ -5,7 +5,7 @@ import { HandHelping, MessageCircle, Phone } from "lucide-react";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/api";
 import { setPendingFeedback } from "@/lib/leadFeedback";
-import { isRtl, loc, URGENCY_ENUM, type AnalysisResult, type Provider } from "@/lib/types";
+import { isRtl, loc, urgencyIndexOf, type AnalysisResult, type Provider } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 
 /**
@@ -26,11 +26,7 @@ export function ReferralBlock({
   const [providers, setProviders] = useState<Provider[]>([]);
 
   const category = analysis.category;
-  // The API serializes enums as ints on the wire, but the type says string — tolerate both.
-  const urgency =
-    typeof analysis.urgencyLevel === "number"
-      ? analysis.urgencyLevel
-      : URGENCY_ENUM[analysis.urgencyLevel] ?? 0;
+  const urgency = urgencyIndexOf(analysis.urgencyLevel);
 
   useEffect(() => {
     // Only surface help for documents that need action (Medium+). Skip if uncategorized.
@@ -81,6 +77,12 @@ export function ReferralBlock({
   return (
     <Card data-print-hide className="border-brand bg-brand-light dark:bg-brand/15">
       <CardContent className="py-5">
+        {/* An uppercase "Sponsored" eyebrow, on top of the existing brand-tinted card chrome —
+            this block is Fana's own recommendation UI and its content is a paid placement, and
+            the two should never be visually ambiguous. */}
+        <span className="mb-2 inline-block rounded-full bg-brand px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-white">
+          {t("referral.sponsoredBadge")}
+        </span>
         <div className="mb-3 flex items-center gap-2" dir={dir}>
           <HandHelping className="h-5 w-5 shrink-0 text-brand" />
           <h3 className="text-lg font-semibold">{t("referral.title")}</h3>

@@ -1,4 +1,7 @@
 import "@testing-library/jest-dom";
+import { toHaveNoViolations } from "jest-axe";
+
+expect.extend(toHaveNoViolations);
 
 // jsdom doesn't implement the Blob object-URL APIs — several components (audio playback,
 // invoice PDF viewing, .ics calendar download links) call these to turn a Blob into a URL.
