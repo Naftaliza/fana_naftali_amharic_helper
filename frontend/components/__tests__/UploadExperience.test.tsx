@@ -5,9 +5,10 @@ import { OrganizationProvider } from "@/lib/organization-context";
 import { getPendingTrialAnalysis } from "@/lib/pendingTrialAnalysis";
 import { api } from "@/lib/api";
 
-jest.mock("@/lib/api", () => ({ api: { trialAnalyze: jest.fn() } }));
+jest.mock("@/lib/api", () => ({ api: { trialAnalyze: jest.fn(), listDocuments: jest.fn().mockResolvedValue([]) } }));
 jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn() }) }));
-jest.mock("@/lib/auth-context", () => ({ useAuth: () => ({ user: null, loading: false }) }));
+let mockUser: { id: string } | null = null;
+jest.mock("@/lib/auth-context", () => ({ useAuth: () => ({ user: mockUser, loading: false }) }));
 
 function renderExperience() {
   window.localStorage.setItem("lang", "en");
@@ -63,5 +64,17 @@ describe("UploadExperience trial persistence", () => {
     fireEvent.click(screen.getByText("Register"));
 
     expect(getPendingTrialAnalysis()?.analysis).toEqual(TRIAL_ANALYSIS);
+  });
+});
+
+describe("UploadExperience signed-in view", () => {
+  beforeEach(() => { mockUser = { id: "u1" }; });
+  afterEach(() => { mockUser = null; });
+
+  it("skips the marketing headline for a returning signed-in visitor", () => {
+    renderExperience();
+    expect(screen.queryByText("Understand Hebrew Documents in Amharic")).not.toBeInTheDocument();
+    // The camera button is still the first thing offered.
+    expect(screen.getByText("Photograph a document")).toBeInTheDocument();
   });
 });

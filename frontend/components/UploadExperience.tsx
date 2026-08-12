@@ -16,6 +16,7 @@ import { AnalyzingState } from "@/components/AnalyzingState";
 import { CameraCapture } from "@/components/CameraCapture";
 import { HowItWorksStrip } from "@/components/HowItWorksStrip";
 import { OutOfCreditsPrompt, isOutOfCreditsError } from "@/components/OutOfCreditsPrompt";
+import { RecentDocuments } from "@/components/RecentDocuments";
 import { ShareButton } from "@/components/ShareButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -132,24 +133,27 @@ export function UploadExperience() {
         >
           {loc(organization.welcomeText, language)}
         </h1>
-      ) : (
+      ) : !user ? (
+        // A first-time/anonymous visitor needs the pitch; a signed-in one already knows the
+        // product — skip straight to the camera button and show their recent uploads below it
+        // instead (see RecentDocuments).
         <>
           <h1 className="bg-brand-gradient bg-clip-text text-4xl font-bold leading-tight text-transparent">{t("landing.headline")}</h1>
           <p className="text-lg text-gray-600 dark:text-gray-400">{t("landing.subheadline")}</p>
           <HowItWorksStrip />
         </>
-      )}
+      ) : null}
 
       <button
         onClick={() => setCameraOpen(true)}
         disabled={!online}
-        className="mt-2 flex w-full flex-col items-center justify-center gap-4 rounded-3xl bg-brand-gradient px-8 py-14 text-white shadow-soft transition-transform hover:scale-[1.02] active:scale-100 disabled:opacity-50 disabled:hover:scale-100"
+        className="mt-2 flex w-full flex-col items-center justify-center gap-3 rounded-3xl bg-brand-gradient px-8 py-7 text-white shadow-soft transition-transform hover:scale-[1.02] active:scale-100 disabled:opacity-50 disabled:hover:scale-100"
         // Inline style wins over the bg-brand-gradient class regardless of source order,
         // so a tenant visitor sees their own colors without touching the default class.
         style={organization ? { background: "linear-gradient(135deg, var(--org-primary), var(--org-accent))" } : undefined}
       >
-        <Camera className="h-20 w-20" />
-        <span className="text-2xl font-bold">{t("upload.takePhoto")}</span>
+        <Camera className="h-12 w-12" />
+        <span className="text-xl font-bold">{t("upload.takePhoto")}</span>
       </button>
 
       {/* Secondary: upload an existing file / PDF. */}
@@ -169,6 +173,8 @@ export function UploadExperience() {
           {t("landing.seeExample")}
         </Link>
       )}
+
+      {!organization && <RecentDocuments />}
 
       <input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden"
         onChange={(e) => handleFiles(Array.from(e.target.files ?? []))} />

@@ -33,7 +33,7 @@ export function BottomNav() {
     { href: homeHref, label: t("nav.dashboard"), icon: LayoutDashboard, active: isHome },
     { href: "/upload", label: t("nav.upload"), icon: Camera, active: isUpload, primary: true },
     { href: "/help", label: t("nav.help"), icon: HelpCircle, active: isHelp },
-    { href: meHref, label: t("nav.profile"), icon: User, active: isMe },
+    { href: meHref, label: user ? t("nav.profile") : t("nav.login"), icon: User, active: isMe },
   ];
 
   return (
